@@ -2,22 +2,22 @@ PRAGMA foreign_keys=on;
 
 CREATE TABLE IF NOT EXISTS People(
 	id integer primary key,
-	name text,
-	address text, 
+	name text DEFAULT '',
+	address text DEFAULT '', 
 	permanent boolean DEFAULT true,
 	relation text NOT NULL,
 	CHECK(relation IN ('customer', 'supplier', 'both'))
 );
 
 CREATE TABLE IF NOT EXISTS Contacts(
-	person REFERENCES People(id),
-	label text, -- home/mobile/work/other
+	person REFERENCES People(id) ON DELETE CASCADE,
+	label text DEFAULT 'other', -- home/mobile/work/other
 	number text primary key
 );
 
 CREATE TABLE IF NOT EXISTS BankAccounts(
 	person REFERENCES People(id),
-	name text,
+	name text default '',
 	number text PRIMARY KEY,
 	IFSC text,
 	bank text,

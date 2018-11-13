@@ -7,6 +7,24 @@
        [min-width 350] [min-height 350]
        [stretchable-width #t] [stretchable-height #t]))
 
+(define (dialog-prompt window-name msg continue)
+  (define dialog (new dialog% (label window-name)))
+ 
+  (new message% [parent dialog] [label msg])
+  (define panel
+    (new horizontal-panel% [parent dialog] [alignment '(center center)]))
+
+  ;; if you are adding code(to callback), its time for refactor !!
+  (new button% [parent panel] [label "Cancel"] [callback (λ (b e)
+                                                           (send dialog show false)
+                                                           (continue #F))])
+  (new button% [parent panel] [label "Ok"] [callback (λ (b e)
+                                                       (send dialog show false)
+                                                       (continue #T))])
+  (when (system-position-ok-before-cancel?)
+    (send panel change-children reverse))
+  (send dialog show #T))
+
 (define (transpose matrix)
   (if (empty? matrix)
       matrix
@@ -18,41 +36,40 @@
 (define (draw-invoice invoice-no)
   (void))
 
-(define (draw-customer customer-id)
+(define (draw-new-customer)
+  (draw-customer (insert-customer!)))
+
+(define (draw-customer customer-id #:parent [parent main-window])
   
   (define customer (personal-details #:of customer-id))
   (define-values (name addr contacts)
     (values (Person-name customer) (Person-address customer) (Person-contacts customer)))
 
-  (define f (new frame% [label name] [parent main-window]))
+  (define f (new frame% [label name] [parent parent]))
 
   (define choices
     (for/list ([(date invoice# bill# total) (invoices-produced #:for customer-id)])
       (list date invoice# bill# total)))
 
-  (define save-invoice! 
-    (unless (empty? choices)
-      (define (show-invoice b e)
-        (when (eq? (send e get-event-type) 'list-box-dclick)
-          (draw-invoice
-           (send invoice-list get-data
-                 (send invoice-list get-selection)))))
+  (unless (empty? choices)
+    (define (show-invoice b e)
+      (when (eq? (send e get-event-type) 'list-box-dclick)
+        (draw-invoice
+         (send invoice-list get-data
+               (send invoice-list get-selection)))))
     
-      (define invoice-list
-        (new list-box% [label "Invoices"] [parent f] [choices '()]
-             [min-width MIN_WIN_WIDTH] [min-height MIN_WIN_HEIGHT]
-             [style '(single column-headers)]
-             [columns '("date" "invoice#" "bill#" "total")]
-             [callback show-invoice]
-             ))
+    (define invoice-list
+      (new list-box% [label "Invoices"] [parent f] [choices '()]
+           [min-width MIN_WIN_WIDTH] [min-height MIN_WIN_HEIGHT]
+           [style '(single column-headers)]
+           [columns '("date" "invoice#" "bill#" "total")]
+           [callback show-invoice]
+           ))
   
-      (send/apply invoice-list set (transpose choices))
-      (for ([column choices]
-            [i (length choices)])
-        (send invoice-list set-data i (second column)))
-    
-      save-invoice!))
-
+    (send/apply invoice-list set (transpose choices))
+    (for ([column choices]
+          [i (length choices)])
+      (send invoice-list set-data i (second column))))
   
   ;; Person Details
   (define name-field
@@ -81,7 +98,6 @@
   (for ([tf (list name-field address-field)])
     (send tf set-field-background (make-object color% "DarkGray")))
  
-
   ;; phone numbers
   (define contact-card
    (new group-box-panel% [label "Contact Card"] [parent f] [font title-font]
@@ -98,7 +114,7 @@
     ))
 
   (define (save-values! b e)
-    (unless (void? save-invoice!) (save-invoice!))
+    ;(unless (void? save-invoice!) (save-invoice!))
     (save-name!)
     (save-address!)
     (save-contacts!))
@@ -109,12 +125,15 @@
 
 (define (draw-customers btn evnt)
   (define f (new frame% [label "customers"] [parent main-window]))
+
+  (define (selected-row) (send customer-list get-selection))
+  (define (selected-row-data)
+    (send customer-list get-data (selected-row)))
   
   (define (show-customer btn event)
-    (when (eq? (send event get-event-type) 'list-box-dclick)
-      (draw-customer
-       (send customer-list get-data
-        (send customer-list get-selection)))))
+    (when (and (eq? (send event get-event-type) 'list-box-dclick)
+               (selected-row))
+      (draw-customer #:parent f (selected-row-data))))
 
   (define customer-list
     (new list-box% [label #F] [parent f] [choices '()]
@@ -129,12 +148,11 @@
   (define (fetch-vals-choices)
     (define-values (customer-ids choices)
       (for/lists (customer-ids choices)
-               ([(customer name address) (select-customers)])
+                 ([(customer name address) (select-customers)])
       (define pnos
         (string-join (phone-numbers #:of customer) "\n"))
       (values customer (list name address pnos))))
     (values customer-ids (transpose choices)))
-
 
   (define (draw-customer-list!)
     (define-values (customer-ids choices)
@@ -144,19 +162,56 @@
         [i (length customer-ids)])
       (send customer-list set-data i customer-id)))
 
-  (draw-customer-list!)
   
-  (new button% [label "reload values"] [parent f]
+  (define (rm-customer b e)
+    (define customer-id (selected-row-data))
+    (println customer-id)
+    (dialog-prompt "delete customer"
+                   "Continue to delete?"
+                   (λ (proceed?)
+                     (when proceed?
+                       (delete-person! customer-id)
+                       (draw-customer-list!)))))
+  (draw-customer-list!)
+
+  (define control-row
+    (new horizontal-panel% (parent f) (alignment '[center center])))
+  (new button% [label "reload values"] [parent control-row]
        [callback (λ (b e) (draw-customer-list!))])
+  (new button% [label "new customer"] [parent control-row]
+       [callback (λ (b e) (draw-new-customer))])
+  (new button% [label "delete customer"] [parent control-row]
+       [callback rm-customer])
   (send f show true)
   customer-list)
 
+(define (draw-suppliers button event)
+  (void))
+
+(define (draw-inventory button event)
+  (void))
+
+(define (draw-ledger button event)
+  (void))
+
+(define (draw-invoices button event)
+  (void))
+
+(define (draw-accounts button event)
+  (void))
 
 (for ((label1 '("Customer" "Inventory" "Ledger"))
-      (label2 '("Supplier" "Invoice" "Account")))
+      (cb1 (list draw-customers draw-inventory draw-ledger))
+      (label2 '("Supplier" "Invoice" "Account"))
+      (cb2 (list draw-suppliers draw-invoices draw-accounts)))
   (define t (new horizontal-panel% [parent main-window]))
-  (for ([label (list label1 label2)])
-    (new button% [parent t] [font header-font] [label label]
-         [stretchable-width #t] [stretchable-height #t])))
 
-(define customer-list (draw-customers 0 0));(send main-window show true)
+  (new button% [parent t] [font header-font] [label label1]
+       [stretchable-width #t] [stretchable-height #t]
+       [callback cb1])
+  (new button% [parent t] [font header-font] [label label2]
+       [stretchable-width #t] [stretchable-height #t]
+       [callback cb2]))
+
+(define customer-list (draw-customers 0 0))
+(send main-window show true)

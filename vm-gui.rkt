@@ -45,7 +45,7 @@
   (define-values (name addr contacts)
     (values (Person-name customer) (Person-address customer) (Person-contacts customer)))
 
-  (define f (new frame% [label name] [parent parent]))
+  (define f (new frame% [label name] [parent parent] [width 600] [height 600]))
 
   (define choices
     (for/list ([(date invoice# bill# total) (invoices-produced #:for customer-id)])
@@ -135,11 +135,12 @@
                (selected-row))
       (draw-customer #:parent f (selected-row-data))))
 
+  (define COLUMN_NAMES '("Name" "Address" "Phone No.s"))
   (define customer-list
     (new list-box% [label #F] [parent f] [choices '()]
          [min-width MIN_WIN_WIDTH] [min-height MIN_WIN_HEIGHT]
          [style '(single column-headers)]
-         [columns '("Name" "Address" "Phone No.s")]
+         [columns COLUMN_NAMES]
          [callback show-customer]
          ))
   (for ([column# 3] [width #(100 300 100)])
@@ -157,9 +158,12 @@
   (define (draw-customer-list!)
     (define-values (customer-ids choices)
       (fetch-vals-choices))
+    
+    (when (empty? choices)
+      (set! choices (make-list (length COLUMN_NAMES) (list))))
     (send/apply customer-list set choices)
     (for ([customer-id customer-ids]
-        [i (length customer-ids)])
+          [i (length customer-ids)])
       (send customer-list set-data i customer-id)))
 
   
@@ -202,7 +206,7 @@
 
 (for ((label1 '("Customer" "Inventory" "Ledger"))
       (cb1 (list draw-customers draw-inventory draw-ledger))
-      (label2 '("Supplier" "Invoice" "Account"))
+      (label2 '("Supplier" "Invoice" "Accounts"))
       (cb2 (list draw-suppliers draw-invoices draw-accounts)))
   (define t (new horizontal-panel% [parent main-window]))
 

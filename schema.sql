@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS People(
 CREATE TABLE IF NOT EXISTS Contacts(
 	person REFERENCES People(id) ON DELETE CASCADE,
 	label text DEFAULT 'other', -- home/mobile/work/other
-	number text primary key
+	number text PRIMARY KEY NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS BankAccounts(
@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS BankAccounts(
 	number text PRIMARY KEY,
 	IFSC text,
 	bank text,
-branch text
+	branch text
 );
 
 

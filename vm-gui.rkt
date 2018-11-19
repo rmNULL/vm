@@ -60,15 +60,16 @@
     
     (new button% [parent this] [label "delete"]
          [callback (λ (_b _e)
-                     (when (> (length (send parent get-children)) 1)
-                       (send parent delete-child this)))])
+                     ;; definitely, there's a better way to do this.
+                     (send parent delete-child this)
+                     (when (empty? (send parent get-children))
+                       (new contact-panel% (parent parent))))])
 
     (define/public (get-number-label)
       (send label-field get-value))
     
     (define/public (get-number)
       (send number-field get-value))
-
 
     (define/public (delete!)
       (delete-contact! #:number @init-num))
@@ -229,13 +230,13 @@
   (define f (new frame% [label "customers"] [parent main-window]))
 
   (define (selected-row) (send customer-list get-selection))
-  (define (selected-row-data)
+  (define (selected-row-pid)
     (send customer-list get-data (selected-row)))
   
   (define (show-customer btn event)
     (when (and (eq? (send event get-event-type) 'list-box-dclick)
                (selected-row))
-      (draw-customer #:parent f (selected-row-data))))
+      (draw-customer #:parent f (selected-row-pid))))
 
   (define COLUMN_NAMES '("Name" "Address" "Phone No.s"))
   (define customer-list
@@ -270,7 +271,7 @@
 
   
   (define (rm-customer b e)
-    (define customer-id (selected-row-data))
+    (define customer-id (selected-row-pid))
     (println customer-id)
     (dialog-prompt "delete customer"
                    "Continue to delete?"

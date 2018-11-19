@@ -9,7 +9,10 @@
   ( tbh, don't let multiple windows of anything open unless explicitly
   said so )
 
+[] customer and supplier have a similar window,
+generalize them.
+
 [x] add/remove/modify contact fields in customer window
 
-[] when a single contact-row(label, num) exists,
-  delete the data but keep an empty table.
+[x] when a single contact-row(label, num) exists,
+  delete the data but keep the default row.

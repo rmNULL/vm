@@ -25,6 +25,110 @@
     (send panel change-children reverse))
   (send dialog show #T))
 
+
+(define contact-panel%
+  (class horizontal-panel%
+    (define CONTACT-LABELS '("Mobile" "Home" "Other"))
+    (init parent
+          (number-label (first CONTACT-LABELS))
+          (number ""))
+
+    (define @init-num number)
+    (define @init-lab number-label)
+
+    (define/public (modified?)
+      (or
+       (not (string-ci=? @init-lab (get-number-label)))
+       (not (string=? @init-num (get-number)))))
+    
+    (super-new (parent parent) (alignment '(left top)))
+ 
+    (define label-field
+      (new combo-field% [parent this] [label #f]
+           [choices CONTACT-LABELS] [init-value number-label]
+           ))
+    
+    (define number-field
+      (new text-field% [parent this] [label #f] [init-value number]
+           [callback (λ (tf _)
+                       (define number (send tf get-value))
+                       (when (> (string-length number) 16)
+                         (send tf set-value (substring number 0 16))))]))
+
+    (new button% [parent this] [label "new"]
+         [callback (λ (_b _e) (new contact-panel% (parent parent)))])
+    
+    (new button% [parent this] [label "delete"]
+         [callback (λ (_b _e)
+                     (when (> (length (send parent get-children)) 1)
+                       (send parent delete-child this)))])
+
+    (define/public (get-number-label)
+      (send label-field get-value))
+    
+    (define/public (get-number)
+      (send number-field get-value))
+
+
+    (define/public (delete!)
+      (delete-contact! #:number @init-num))
+
+    (define/public (save!)
+      (define-values (label number) (values (get-number-label) (get-number)))
+      (define save? (and (modified?) (non-empty-string? number)))
+      (define pid
+        (send (send this get-parent) get-person-id))
+      (define in-db? (non-empty-string? @init-num))
+      
+      (when save?
+        (define c (Contact label number))
+        (if in-db?
+            (update-contact! #:old-number @init-num #:contact c)
+            (insert-contact! #:contact c #:person-id pid))
+        (set! @init-num number)))))
+
+
+(define contact-card%
+  (class group-box-panel%
+    (init parent person-id)
+    (define @pid person-id)
+    (define/public (get-person-id) @pid)
+    
+    (define to-delete '())
+    (define (empty-to-delete!) (set! to-delete '()))
+    (define (push-to-delete child)
+      (set! to-delete (cons child to-delete)))
+    
+    (super-new [parent parent] (label "Contact Card"))
+    
+    (define/override (delete-child child)
+      (when (or (send child modified?)
+                (non-empty-string? (send child get-number)))
+        (push-to-delete child))
+      (super delete-child child))
+
+    (define/public add-contact
+      (case-lambda
+        [() (new contact-panel% [parent this])]
+        [(l n) (new contact-panel% [parent this] [number n] [number-label l])]))
+
+    (define (save!)
+      (for ([row (in-list (send this get-children))])
+        (send row save!)))
+
+    (define (delete!)
+      (for ([row (in-list to-delete)])
+        (send row delete!)))
+
+    (define/public (update!)
+      (save!)
+      (delete!)
+      (empty-to-delete!))
+    ))
+
+
+
+
 (define (transpose matrix)
   (if (empty? matrix)
       matrix
@@ -99,19 +203,17 @@
     (send tf set-field-background (make-object color% "DarkGray")))
  
   ;; phone numbers
+  
+
   (define contact-card
-   (new group-box-panel% [label "Contact Card"] [parent f] [font title-font]
-       ))
+    (new contact-card% (parent f) (person-id customer-id)))
   (for ([(label number) contacts])
-    (new text-field% [label label] [parent contact-card] [init-value number]
-         ))
-  (define (save-contacts!)
-    (for ([number-field (in-list (send contact-card get-children))]
-          [(label number) contacts]
-          #:when (not (string=? number (send number-field get-value))))
-      (define no (send number-field get-value))
-      (update-contact-number! #:label label #:number no #:person-id customer-id)
-    ))
+    (send contact-card add-contact label number))
+
+  (when (empty? (send contact-card get-children))
+    (send contact-card add-contact))
+  
+  (define (save-contacts!) (send contact-card update!))
 
   (define (save-values! b e)
     ;(unless (void? save-invoice!) (save-invoice!))
@@ -187,6 +289,7 @@
   (new button% [label "delete customer"] [parent control-row]
        [callback rm-customer])
   (send f show true)
+  
   customer-list)
 
 (define (draw-suppliers button event)

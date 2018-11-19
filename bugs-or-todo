@@ -1,14 +1,15 @@
 
 [] Remove deleted window on delete
   - when we delete a customer from customers-window the (deleted) customer
-      window maybe open in such close, window should be closed
+      window maybe open, in such case, close the customer window
 
 [] open only a single instance of a window in main-menu
-
-[] add/remove/modify contact fields in customer window
 
 [] don't let multiple windows of same customer open
   ( tbh, don't let multiple windows of anything open unless explicitly
   said so )
 
+[x] add/remove/modify contact fields in customer window
 
+[] when a single contact-row(label, num) exists,
+  delete the data but keep an empty table.

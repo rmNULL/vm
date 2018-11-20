@@ -21,3 +21,24 @@
   (when (system-position-ok-before-cancel?)
     (send panel change-children reverse))
   (send dialog show true))
+
+(define extended-list-box%
+  (class list-box%
+    (super-new)
+    (inherit get-number get-column-labels (-append append) set-string)
+    
+    (define/public (append-row labels (data #f))
+      ;;; REFACTOR ... .. .
+      (let ([cols (length (get-column-labels))])
+        (unless (andmap label-string? labels)
+          (raise (format "expected list of label strings instead given ~a"
+                         labels)))
+        (unless (= cols (length labels))
+          (raise (format "labels should contain ~a label-strings, instead given ~v"
+                         cols labels))))
+ 
+      (define row (get-number))
+      (-append (first labels) data)
+      (for ([label (in-list (rest labels))]
+            [column (in-naturals 1)])
+        (set-string row label column)))))

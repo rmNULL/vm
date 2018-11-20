@@ -12,6 +12,8 @@
 [] customer and supplier have a similar window,
 generalize them.
 
+[] ON DELETE CASCADE, is dangerous.
+  Perform Logical deletes instead of permanent deletes?
 
 [] (existing) Contact labels doesn't update,
    when new contact labels come

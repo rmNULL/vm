@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS Contacts(
 );
 
 CREATE TABLE IF NOT EXISTS BankAccounts(
-	person REFERENCES People(id),
+	person REFERENCES People(id) ON DELETE CASCADE,
 	name text default '',
 	number text PRIMARY KEY,
 	IFSC text,
@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS BankAccounts(
 CREATE TABLE IF NOT EXISTS Inventory(
 	lot integer PRIMARY KEY,
 	date datetime,
-	supplier REFERENCES People(id),
+	supplier REFERENCES People(id) ON DELETE CASCADE,
 	status text NOT NULL DEFAULT 'open',
 	CHECK(status in ('open', 'closed'))
 );
@@ -48,7 +48,7 @@ CREATE TABLE IF NOT EXISTS Invoice(
 	number integer PRIMARY KEY,
 	bill_number integer, -- manually maintained entry
 	date datetime,
-	customer REFERENCES People(id),
+	customer REFERENCES People(id) ON DELETE CASCADE,
 	total number
 );
 
@@ -65,7 +65,7 @@ CREATE TABLE IF NOT EXISTS Sold(
 
 CREATE TABLE IF NOT EXISTS MoneyTransaction(
 	ref_id integer PRIMARY KEY,
-	person REFERENCES People(id),
+	person REFERENCES People(id) ON DELETE CASCADE,
 	date datetime,
 	credit number,
 	debit number,

@@ -12,6 +12,9 @@
 [] customer and supplier have a similar window,
 generalize them.
 
+
+[] (existing) Contact labels doesn't update,
+   when new contact labels come
 [x] add/remove/modify contact fields in customer window
 
 [x] when a single contact-row(label, num) exists,

@@ -3,7 +3,7 @@ PRAGMA foreign_keys=on;
 CREATE TABLE IF NOT EXISTS People(
 	id integer primary key,
 	name text DEFAULT '',
-	address text DEFAULT '', 
+	address text DEFAULT '',
 	permanent boolean DEFAULT true,
 	relation text NOT NULL,
 	CHECK(relation IN ('customer', 'supplier', 'both'))
@@ -44,7 +44,6 @@ CREATE TABLE IF NOT EXISTS Items(
 	PRIMARY KEY (lot, name)
 );
 
-
 CREATE TABLE IF NOT EXISTS Invoice(
 	number integer PRIMARY KEY,
 	bill_number integer, -- manually maintained entry
@@ -54,7 +53,7 @@ CREATE TABLE IF NOT EXISTS Invoice(
 );
 
 CREATE TABLE IF NOT EXISTS Sold(
-	invoice REFERENCES Invoice(number),
+	invoice REFERENCES Invoice(number) ON UPDATE CASCADE,
 	lot,
 	item,
 	qty integer,
@@ -73,3 +72,13 @@ CREATE TABLE IF NOT EXISTS MoneyTransaction(
 	total number,
 	description text
 );
+
+CREATE view contact_labels
+AS
+ select DISTINCT(label) from Contacts
+ union
+ select 'mobile'
+ union
+ select 'work'
+ union
+ select 'other';

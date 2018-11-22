@@ -2,11 +2,29 @@
 (provide (all-defined-out))
 
 (define MIN_WIN_WIDTH  500)
-(define MIN_WIN_HEIGHT 500)
+(define MIN_WIN_HEIGHT 300)
+(require racket/date)
+
+(define DAYS '("Sun" "Mon" "Tue" "Wed" "Thu" "Fri" "Sat"))
+(define MONTHS '(#f "Jan" "Feb" "Mar" "Apr" "May" "Jun" "Jul" "Aug" "Sep" "Oct" "Nov" "Dec"))
+(define (date-today)
+  (let* ([now (current-date)]
+         [mon (list-ref MONTHS (date-month now))]
+         [year (date-year now)]
+         [day (date-day now)]
+         [wday (list-ref DAYS (date-week-day now))])
+    (format "~a ~a, ~a ~a" wday day mon year)))
+
+(define SAFE-COLOR (send the-color-database find-color "Medium Turquoise"))
+(define WARN-COLOR (send the-color-database find-color "orange"))
+(define DEF-BG-COLOR (send the-color-database find-color "white"))
+
+
 
 (define (dialog-prompt window-name msg continue)
   (define dialog (new dialog% (label window-name)))
- 
+
+  
   (new message% [parent dialog] [label msg])
   (define panel
     (new horizontal-panel% [parent dialog] [alignment '(center center)]))
@@ -42,3 +60,15 @@
       (for ([label (in-list (rest labels))]
             [column (in-naturals 1)])
         (set-string row label column)))))
+
+
+(define restricted-text-field%
+  (class text-field%
+    ;; inefficient . 
+    (init pattern [callback #f])
+    (inherit get-value set-value)
+    (super-new [callback (λ (t e)
+                           (define pat-match (regexp-match pattern (get-value)))
+                           (define v (if pat-match (first pat-match) ""))
+                           (set-value v)
+                           (when callback (callback t e)))])))

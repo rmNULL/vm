@@ -1,5 +1,6 @@
 #lang racket/gui
 (require "../vm.rkt")
+(require "./common-gui-utils.rkt")
 
 
 (provide contact-card%)
@@ -26,11 +27,10 @@
            [choices CONTACT-LABELS] [init-value number-label]))
     
     (define number-field
-      (new text-field% [parent this] [label #f] [init-value number]
-           [callback (λ (tf _)
-                       (define number (send tf get-value))
-                       (when (> (string-length number) 16)
-                         (send tf set-value (substring number 0 16))))]))
+      (new restricted-text-field%
+           [pattern #px"\\d{,16}"]
+           [parent this] [label #f] [init-value number]
+           ))
 
     (new button% [parent this] [label "new"]
          [callback (λ (_b _e) (new contact-panel% (parent parent)))])

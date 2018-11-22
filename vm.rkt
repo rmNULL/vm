@@ -2,12 +2,15 @@
 (require db)
 (provide (all-defined-out))
 
+(define PAT-INT "[0-9]+")
+(define RX-INT (pregexp PAT-INT))
+(define RX-FLOAT (pregexp (string-append PAT-INT "[.]" PAT-INT)))
+(define RX-NAME #px"[A-Za-z]+(?:\\s[A-Za-z]+)*")
+
 (define (init-db)
-  (define D (sqlite3-connect #:database "vm.db" #:mode 'create))
+  (define D (sqlite3-connect #:database "/Users/rmnull/vm/vm.db" #:mode 'create))
   (query-exec D "pragma foreign_keys = on")
   D)
-
-
 
 (define DBCON (init-db))
 (define sqlite-true  1 #;(query-value DBCON "select true"))
@@ -17,6 +20,16 @@
 
 (struct Contact (label number))
 (struct Account (number IFSC bank branch))
+
+(define (select-invoice invoice-no)
+  (query-maybe-row  DBCON
+                    "select bill_number, date, customer, total
+                      from Invoice where number = ?" invoice-no))
+
+(define (select-lot#s)
+  (query-list DBCON "select lot from Inventory"))
+
+
 
 (define (insert-account! #:account a #:person p)
   (query-exec DBCON
@@ -82,7 +95,6 @@
      DBCON
      (string-append "update People set " col-name " = $1 where id = $2")
      val person)))
-
 
 
 (struct Person
@@ -167,9 +179,10 @@
             relation))
 
 (define (supplier? p)
-  (query-maybe-value
-   DBCON
-   "select ? IN (select id from People where relation in ('supplier', 'both'))"))
+  (define ret (query-maybe-value
+               DBCON
+               "select ? IN (select id from People where relation in ('supplier', 'both'))" p))
+  (= ret sqlite-true))
 
 (define (select-customers) (select-relation "customer"))
 (define (select-suppliers) (select-relation "supplier"))
@@ -177,22 +190,25 @@
 (define (select-x-suppliers) (select-relation "supplier" #:exclusive? true))
 
 (define (insert-lot! #:supplier p #:items (items '()) #:lot# (lot# #F))
-  (when (supplier? p)
-    (start-transaction DBCON)
-    (if lot#
-        (query-exec DBCON
-                    "insert into Inventory(lot, supplier, date)
-                   values($1, $2, datetime('now'))"
-                    lot# p)
-        (begin
-          (query-exec DBCON
-                      "insert into Inventory(supplier, date)
-                     values($1, datetime('now'))"
-                      p)
-          (set! lot# (last-insert-rowid))))
+  (unless (supplier? p)
+    (raise "insert-lot!: not a supplier"))
   
-    (for ([item items]) (insert-inventory-item! #:item item #:lot lot#))
-    (commit-transaction DBCON)))
+  (start-transaction DBCON)
+  (if lot#
+      (query-exec DBCON
+                  "insert into Inventory(lot, supplier, date)
+                   values($1, $2, datetime('now'))"
+                  lot# p)
+      (begin
+        (query-exec DBCON
+                    "insert into Inventory(supplier, date)
+                     values($1, datetime('now'))"
+                    p)
+        (set! lot# (last-insert-rowid))))
+  
+  (for ([item items]) (insert-inventory-item! #:item item #:lot lot#))
+  (commit-transaction DBCON)
+  lot#)
 
 (struct Item
   (name quantity (stock #:mutable) ppu package package-count))
@@ -218,25 +234,37 @@
   (apply Item
          (vector->list
           (query-row DBCON
-                     "select (name, qty, stock, ppu, package, package_count) from Items
+                     "select name, qty, stock, ppu, package, package_count from Items
                      where lot = $1 AND name = $2"
                      lot# name))))
 
+(define (select-item-names lot#)
+  (query-list DBCON "select name from Items where lot = $1" lot#))
+
 (define (select-items lot#)
   (in-query DBCON
-            "select (name, qty, stock, ppu, package, package_count) from Items
-              where lot# = $1"
+            "select name, qty, stock, ppu, package, package_count from Items
+              where lot = $1"
             lot#))
 
 (struct Selling
   (lot item-name qty package n_packages))
 
-(define (sell! #:to customer #:items s-items  #:bill-number bill)
+(define (sell! #:to customer #:items s-items  #:bill-number bill #:invoice-number [invoice-no #f])
+  ;; invoice-no should be a non-existing invoice# in the database
   (start-transaction DBCON)
-  (query-exec DBCON
-              "insert into Invoice(bill_number, date, customer) values ($1,date('now'),$2)"
-              bill customer)
-  (define invoice-no (last-insert-rowid))
+  (if invoice-no
+      (query-exec
+       DBCON
+       "insert into Invoice(number, bill_number, date, customer) values ($1,$2, date('now'),$3)"
+       invoice-no bill customer)
+      
+      (begin
+        (query-exec DBCON
+                    "insert into Invoice(bill_number, date, customer) values ($1,date('now'),$2)"
+                    bill customer)
+        (set! invoice-no (last-insert-rowid))))
+  
   (for ([item s-items])
     (insert-invoice-item! invoice-no item))
   (commit-transaction DBCON))

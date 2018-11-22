@@ -21,3 +21,10 @@ generalize them.
 
 [x] when a single contact-row(label, num) exists,
   delete the data but keep the default row.
+
+
+---
+FIXES
+---
+
+- Rewrite the restricted-text-field% dealing with the internals.

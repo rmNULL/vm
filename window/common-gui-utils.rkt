@@ -40,6 +40,8 @@
     (send panel change-children reverse))
   (send dialog show true))
 
+
+;; provides add row by #of cols in the list-box
 (define extended-list-box%
   (class list-box%
     (super-new)

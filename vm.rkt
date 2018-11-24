@@ -1,11 +1,11 @@
-#lang racket
+#lang racket/base
 (require db)
 (provide (all-defined-out))
 
 (define PAT-INT "[0-9]+")
 (define RX-INT (pregexp PAT-INT))
 (define RX-FLOAT (pregexp (string-append PAT-INT "[.]" PAT-INT)))
-(define RX-NAME #px"[A-Za-z]+(?:\\s[A-Za-z]+)*")
+(define RX-NAME #px"[A-Za-z]+(?:\\s[A-Za-z]*)*")
 
 (define (init-db)
   (define D (sqlite3-connect #:database "/Users/rmnull/vm/vm.db" #:mode 'create))
@@ -25,6 +25,14 @@
   (query-maybe-row  DBCON
                     "select bill_number, date, customer, total
                       from Invoice where number = ?" invoice-no))
+
+(define (select-invoices)
+  (in-query DBCON "select date, number, bill_number, total from Invoice"))
+
+(define (invoices-produced #:for customer)
+  (in-query
+   DBCON
+   "select date, number, bill_number, total from Invoice where customer = ?" customer))
 
 (define (select-lot#s)
   (query-list DBCON "select lot from Inventory"))
@@ -118,13 +126,11 @@
   (in-query DBCON "select  name, number, bank, branch, IFSC from BankAccounts
                    where person = ?" person))
 
-(define (invoices-produced #:for customer)
-  (in-query
-   DBCON
-   "select date, number, bill_number, total from Invoice where customer = ?" customer))
-
 (define (delete-person! person-id)
    (query-exec DBCON "delete from People where id = ?" person-id))
+(define (delete-invoice! invoice#)
+  (query-exec DBCON "delete from Invoice where number = ?" invoice#))
+
 
 (define (insert-person! #:name [n #f]
                         #:address [addr #f]
@@ -165,7 +171,7 @@
                   #:permanent? permanent?))
 
 
-(define (select-relation relation #:exclusive? [exclusive? false])    
+(define (select-relation relation #:exclusive? [exclusive? #f])    
   (define pred
     (if exclusive?
         "relation = ?"
@@ -186,8 +192,8 @@
 
 (define (select-customers) (select-relation "customer"))
 (define (select-suppliers) (select-relation "supplier"))
-(define (select-x-customers) (select-relation "customer" #:exclusive? true))
-(define (select-x-suppliers) (select-relation "supplier" #:exclusive? true))
+(define (select-x-customers) (select-relation "customer" #:exclusive? #t))
+(define (select-x-suppliers) (select-relation "supplier" #:exclusive? #t))
 
 (define (insert-lot! #:supplier p #:items (items '()) #:lot# (lot# #F))
   (unless (supplier? p)
@@ -228,7 +234,7 @@
               (Item-package-count item)))
 
 (define (select-lots)
-  (in-query DBCON "select (lot, date, supplier) from Inventory where status = 'open'"))
+  (in-query DBCON "select lot, date, supplier from Inventory where status = 'open'"))
 
 (define (select-item lot# name)
   (apply Item

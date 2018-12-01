@@ -20,7 +20,7 @@
        (not (string-ci=? @init-lab (get-number-label)))
        (not (string-ci=? @init-num (get-number)))))
     
-    (super-new (parent parent) (alignment '(left top)))
+    (super-new (parent parent) (alignment '(left top)) (stretchable-width #f) (stretchable-height #f))
  
     (define label-field
       (new combo-field% [parent this] [label #f]

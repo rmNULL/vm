@@ -20,6 +20,16 @@
 (define DEF-BG-COLOR (send the-color-database find-color "white"))
 
 
+(define choice-data%
+  (class choice%
+    (init (datas '()) (choices '()) (label #f))
+    (unless (= (length datas) (length choices))
+      (raise "Length of datas and choices must be equal"))
+    (define @datas datas)
+    (define/public (get-data n) (list-ref @datas n))
+    (super-new [choices choices] (label label))
+    ))
+
 
 (define (dialog-prompt window-name msg continue)
   (define dialog (new dialog% (label window-name)))
@@ -51,10 +61,10 @@
       ;;; REFACTOR ... .. .
       (let ([cols (length (get-column-labels))])
         (unless (andmap label-string? labels)
-          (raise (format "expected list of label strings instead given ~a"
+          (raise (format "expected list of label strings, instead given ~a"
                          labels)))
         (unless (= cols (length labels))
-          (raise (format "labels should contain ~a label-strings, instead given ~v"
+          (raise (format "labels should contain ~a label strings, instead given ~v"
                          cols labels))))
  
       (define row (get-number))

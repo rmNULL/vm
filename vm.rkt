@@ -2,9 +2,16 @@
 (require db)
 (provide (all-defined-out))
 
+;; Note --
+;; ALL DATETIME ARE STORED IN DEFAULT FORMAT, but retreived in LOCALTIME format.
+;;
+
 (define PAT-INT "[0-9]+")
 (define RX-INT (pregexp PAT-INT))
-(define RX-FLOAT (pregexp (string-append PAT-INT "[.]" PAT-INT)))
+(define RX-FLOAT (pregexp (string-append PAT-INT
+                                         "(?:" "(?:[.]" PAT-INT ")"
+                                         "|" "[.]?"
+                                         ")?")))
 (define RX-NAME #px"[A-Za-z]+(?:\\s[A-Za-z]*)*")
 
 (define (init-db)
@@ -23,16 +30,17 @@
 
 (define (select-invoice invoice-no)
   (query-maybe-row  DBCON
-                    "select bill_number, date, customer, total
+                    "select bill_number, date(date, 'localtime'), customer, total
                       from Invoice where number = ?" invoice-no))
 
 (define (select-invoices)
-  (in-query DBCON "select date, number, bill_number, total from Invoice"))
+  (in-query DBCON "select date(date, 'localtime'), number, bill_number, total from Invoice"))
 
 (define (invoices-produced #:for customer)
   (in-query
    DBCON
-   "select date, number, bill_number, total from Invoice where customer = ?" customer))
+   "select date(date, 'localtime'), number, bill_number, total
+    from Invoice where customer = ?" customer))
 
 (define (select-lot#s)
   (query-list DBCON "select lot from Inventory"))
@@ -74,26 +82,6 @@
     #hash((People . (id name address permanent relation))
           (Contacts . (person label number))))
 
-#;(define (select-query #:table table  #:fields fields)
-  ;; table is assumed to exist !!
-  (define table-name (format "~a" table))
-  (define table-attribs (hash-ref TAB-ATTRIBS table))
-  
-  (define-values (attrs tup)
-    (for/lists (attrs tup)
-               ([(f v) fields]
-                #:when (member f table-attribs))
-      (values (format "~a" f) v)))
-
-  (if (empty? attrs)
-      (values (string) (list))
-      (values
-       (string-append "select "
-                     (string-join attrs ",")
-                     " FROM " table-name
-                     " where "
-                     (string-join (map (λ (attr) (string-append attr " = ?")) attrs) " AND "))
-       tup)))
 
 (define (update-person! #:column col #:value val #:person-id person)
   (define col-names (hash-ref TAB-ATTRIBS 'People))
@@ -130,6 +118,8 @@
    (query-exec DBCON "delete from People where id = ?" person-id))
 (define (delete-invoice! invoice#)
   (query-exec DBCON "delete from Invoice where number = ?" invoice#))
+(define (delete-inventory! lot#)
+  (query-exec DBCON "delete from Inventory where lot = ?" lot#))
 
 
 (define (insert-person! #:name [n #f]
@@ -233,8 +223,10 @@
               (Item-package item)
               (Item-package-count item)))
 
-(define (select-lots)
-  (in-query DBCON "select lot, date, supplier from Inventory where status = 'open'"))
+(define (select-lots [status "open"])
+  (in-query DBCON "select datetime(date, 'localtime'), lot, name, status
+                   from Inventory JOIN People AS P ON supplier = P.id
+                   where status = ?" status))
 
 (define (select-item lot# name)
   (apply Item

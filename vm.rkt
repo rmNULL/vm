@@ -90,19 +90,27 @@
     (query-exec
      DBCON
      (string-append "update People set " col-name " = $1 where id = $2")
-     val person)))
+     val person)
+    #t))
 
 
 (struct Person
   (name address relation contacts bank-accounts))
 
+(define (select-person id)
+  (if id
+     (query-maybe-row DBCON "select name, address, relation from People where id = ?" id)
+     #F))
+
 (define (personal-details #:of person)
-  (define-values (name address relation)
-    (vector->values
-     (query-row DBCON "select name, address, relation from People where id = ?" person)))
-  (Person name address relation
+  (define row (select-person person))
+  (if row
+      (let ()
+        (define-values (name address relation) (vector->values row))
+        (Person name address relation
           (contact-details #:of person)
           (bank-details #:of person)))
+      #f))
 
 (define (phone-numbers #:of person)
   (query-list DBCON "select number from Contacts where person = ?" person))
@@ -185,6 +193,9 @@
 (define (select-x-customers) (select-relation "customer" #:exclusive? #t))
 (define (select-x-suppliers) (select-relation "supplier" #:exclusive? #t))
 
+(struct Item
+  (name quantity (stock #:mutable) package package-count))
+
 (define (insert-lot! #:supplier p #:items (items '()) #:lot# (lot# #F))
   (unless (supplier? p)
     (raise "insert-lot!: not a supplier"))
@@ -206,20 +217,17 @@
   (commit-transaction DBCON)
   lot#)
 
-(struct Item
-  (name quantity (stock #:mutable) ppu package package-count))
 
 (define (insert-inventory-item!
          #:lot lot
          #:item item)
   (query-exec DBCON
-              "insert into Items(lot, name, qty, stock, ppu, package, package_count)
+              "insert into Items(lot, name, qty, stock, package, package_count)
                values( $1, $2, $3, $4, $5, $6, $7 )"
               lot
               (Item-name item)
               (Item-quantity item)
               (Item-stock item)
-              (Item-ppu item)
               (Item-package item)
               (Item-package-count item)))
 
@@ -232,7 +240,7 @@
   (apply Item
          (vector->list
           (query-row DBCON
-                     "select name, qty, stock, ppu, package, package_count from Items
+                     "select name, qty, stock, package, package_count from Items
                      where lot = $1 AND name = $2"
                      lot# name))))
 
@@ -241,12 +249,12 @@
 
 (define (select-items lot#)
   (in-query DBCON
-            "select name, qty, stock, ppu, package, package_count from Items
+            "select name, qty, stock, package, package_count from Items
               where lot = $1"
             lot#))
 
-(struct Selling
-  (lot item-name qty package n_packages))
+(struct SellingItem
+  (lot name ppu qty package n_packages))
 
 (define (sell! #:to customer #:items s-items  #:bill-number bill #:invoice-number [invoice-no #f])
   ;; invoice-no should be a non-existing invoice# in the database
@@ -267,26 +275,32 @@
     (insert-invoice-item! invoice-no item))
   (commit-transaction DBCON))
 
+(define (insert-invoice-item! invoice s-item)
+  (define-values (name lot ppu qty)
+    (values (SellingItem-name s-item) (SellingItem-lot s-item)
+            (SellingItem-ppu s-item) (SellingItem-qty s-item)))
+  
+  (define instock (Item-stock (select-item lot name)))
+  (define updated-stock (- instock qty))
+  
+  (when (>= updated-stock 0)
+    (define amount (* ppu qty))
+    (define pkg (SellingItem-package s-item))
+    (define n_pkgs (SellingItem-n_packages s-item))
+    (start-transaction DBCON)
+    (query-exec DBCON
+                "insert into Sold
+                 (invoice, lot, item, ppu, qty, amount, package, package_count) values
+                 (     $1,  $2,   $3,  $4,  $5,     $6,      $7,            $8)"
+                  invoice  lot  name  ppu  qty   amount     pkg         n_pkgs)
+
+    (update-item-stock! lot name updated-stock)
+    (commit-transaction DBCON)))
+
 (define (update-item-stock! lot item-name stock)
   (query-exec DBCON
               "update Items set stock = $1 where lot = $2 AND name = $3"
               stock lot item-name))
-
-(define (insert-invoice-item! invoice s-item)
-  (define-values (item-name lot qty)
-    (values (Selling-item-name s-item) (Selling-lot s-item) (Selling-qty s-item)))
-  (define item (select-item lot item-name))
-  (define updated-stock (- (Item-stock item) qty))
-  
-  (when (>= updated-stock 0)
-    (define amount (* (Item-ppu item) qty))
-    (start-transaction DBCON)
-    (query-exec DBCON
-                "insert into Sold(invoice, lot, item, qty, amount, package, package_count)
-                 values ($1,$2,$3,$4,$5,$6,$7)"
-                lot item-name qty amount (Selling-package s-item) (Selling-n_packages s-item))
-    (update-item-stock! lot item-name updated-stock)
-    (commit-transaction DBCON)))
 
 
 (define (close-db D)

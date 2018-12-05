@@ -12,6 +12,7 @@
           (number-label (first CONTACT-LABELS))
           (number ""))
 
+    (define @parent parent)
     (define @init-num number)
     (define @init-lab number-label)
 
@@ -51,12 +52,12 @@
     (define/public (delete!)
       (delete-contact! #:number @init-num))
 
+    
     (define/public (save!)
       (define-values (label number)
         (values (string-downcase (string-normalize-spaces (get-number-label))) (get-number)))
       (define save? (and (modified?) (non-empty-string? number)))
-      (define pid
-        (send (send this get-parent) get-person-id))
+      (define pid (send @parent get-person-id))
       (define in-db? (non-empty-string? @init-num))
       
       (when save?
@@ -74,6 +75,7 @@
     (init parent person-id)
     (define @pid person-id)
     (define/public (get-person-id) @pid)
+    (define/public (set-person-id! v) (set! @pid v))
     
     (define to-delete '())
     (define (empty-to-delete!) (set! to-delete '()))
@@ -107,4 +109,10 @@
       (save!)
       (delete!)
       (empty-to-delete!))
+
+    (define contacts (if @pid (contact-details #:of @pid) '()))
+    (for ([(label number) contacts])
+      (add-contact label number))
+
+    (when (empty? (send this get-children)) (add-contact))
     ))

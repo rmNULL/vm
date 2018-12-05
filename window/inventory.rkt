@@ -10,12 +10,11 @@
     (define item-inputs
       (for/list ([name-pat `(("Name" . ,RX-NAME)
                              ("Qty(kg)" . ,RX-INT)
-                             #;("Stock" . ,RX-INT)
-                             ("ppu" . ,RX-FLOAT)
+                             ("Stock" . ,RX-INT)
                              ("package" . ,RX-NAME)
                              ("no.of packages" . ,RX-INT))])
         (define-values (name pat) (values (car name-pat) (cdr name-pat)))
-        (new restricted-text-field% [label name]
+        (new restricted-text-field% [label name] [enabled (not (string=? "Stock" name))]
              [style '(single vertical-label)] [parent this] [pattern pat])))
 
     (define/public (non-empty-fields?)
@@ -50,7 +49,7 @@
 
     (define/public (get-items)
       (for/list ([row lot-rows])
-          (map (λ (tf) (send tf get-item)) row)))
+          (send row get-item)))
     
     (add-item)))
 
@@ -72,7 +71,7 @@
       (let-values ([(ids names)
                     (for/lists (ids names)
                               ([(id name _a) (select-suppliers)])
-                     (values id (format "(~a) ~a" name)))])
+                     (values id (format "(~a) ~a" id name)))])
         (new choice-data% (label "supplier") (parent this) (datas ids) (choices names)
              (style '(vertical-label))
              (enabled (not (empty? names))))))
@@ -82,7 +81,7 @@
            (style '(vertical-label))
            (enabled #f)))
 
-    (define/public (get-lot) (send lot-f get-string-selection))
+    (define/public (get-lot) (send lot-f get-value))
     (define/public (get-supplier)
       (when (send supplier-f is-enabled?)
         (send supplier-f get-data (send supplier-f get-selection))))
@@ -91,7 +90,11 @@
     (define/public (non-empty-fields?)
       (and (non-empty-string? (get-supplier))
            (non-empty-string? (get-lot))
-           (non-empty-string? (get-status))))
+           (non-empty-string? (get-status)))
+      (display "\n\n --")
+      (displayln (and (non-empty-string? (get-supplier))
+           (non-empty-string? (get-lot))
+           (non-empty-string? (get-status)))))
     
     ))
 
@@ -110,6 +113,7 @@
 
     (define (save!)
       (define saved? (all-inputs-filled?))
+      (displayln saved?)
       (when saved?
         (define-values (supp lot#) (values (send head-f get-supplier) (send head-f get-lot)))
         (insert-lot! #:lot# lot# #:supplier supp

@@ -56,6 +56,11 @@
   (class list-box%
     (super-new)
     (inherit get-number get-column-labels (-append append) set-string)
+
+    (define/public (selected-row) (send this get-selection))
+    (define/public (selected-row-data)
+      (define selection (selected-row))
+      (and selection (send this get-data selection)))
     
     (define/public (append-row labels (data #f))
       ;;; REFACTOR ... .. .

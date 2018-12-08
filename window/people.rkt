@@ -166,7 +166,8 @@
     (init parent [id #f])
     (super-new (parent parent) (label ""))
   
-    (define name-addr-contact (new basic-details-panel% [parent this] [person id] [relation 'supplier]))
+    (define name-addr-contact (new basic-details-panel% [parent this] [person id]
+                                   [relation 'supplier]))
     (send this set-label (send name-addr-contact get-name))
     ;;;  bank accounts left out
     

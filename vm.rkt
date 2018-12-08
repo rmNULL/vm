@@ -15,7 +15,9 @@
 (define RX-NAME #px"[A-Za-z]+(?:\\s[A-Za-z]*)*")
 
 (define (init-db)
-  (define D (sqlite3-connect #:database "/Users/rmnull/vm/vm.db" #:mode 'create))
+  (define D (sqlite3-connect
+             #:database (build-path (find-system-path 'home-dir) "vm" "vm.db")
+             #:mode 'create))
   (query-exec D "pragma foreign_keys = on")
   D)
 
@@ -178,7 +180,7 @@
   (in-query DBCON
             (format "select id, name, address from People
                      where permanent AND ~a
-                     ORDER by name"
+                     ORDER by lower(name)"
                     pred)
             relation))
 
@@ -196,6 +198,7 @@
 (struct Item
   (name quantity (stock #:mutable) package package-count))
 
+;; lot# (string/number) -> number
 (define (insert-lot! #:supplier p #:items (items '()) #:lot# (lot# #F))
   (unless (supplier? p)
     (raise "insert-lot!: not a supplier"))
@@ -222,8 +225,8 @@
          #:lot lot
          #:item item)
   (query-exec DBCON
-              "insert into Items(lot, name, qty, stock, package, package_count)
-               values( $1, $2, $3, $4, $5, $6, $7 )"
+              "insert into Items (lot, name, qty, stock, package, package_count)
+               values            ( $1,   $2,  $3,    $4,      $5,            $6)"
               lot
               (Item-name item)
               (Item-quantity item)
@@ -245,12 +248,15 @@
                      lot# name))))
 
 (define (select-item-names lot#)
-  (query-list DBCON "select name from Items where lot = $1" lot#))
+  (query-list DBCON
+              "select name from Items T JOIN Inventory I ON T.lot = I.lot
+               where I.lot = $1" lot#))
 
 (define (select-items lot#)
   (in-query DBCON
-            "select name, qty, stock, package, package_count from Items
-              where lot = $1"
+            "select name, qty, stock, package, package_count
+             from Items T JOIN Inventory I ON T.lot = I.lot 
+             where I.lot = $1"
             lot#))
 
 (struct SellingItem
@@ -301,6 +307,9 @@
   (query-exec DBCON
               "update Items set stock = $1 where lot = $2 AND name = $3"
               stock lot item-name))
+
+
+(define (lot-taken? lot#) (query-maybe-value DBCON "select true from Inventory where lot = ?" lot#))
 
 
 (define (close-db D)

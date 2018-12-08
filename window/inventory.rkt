@@ -7,31 +7,34 @@
   (class horizontal-panel%
     (init parent)
     (super-new (parent parent) (stretchable-height #f))
+    
     (define item-inputs
       (for/list ([name-pat `(("Name" . ,RX-NAME)
                              ("Qty(kg)" . ,RX-INT)
-                             ("Stock" . ,RX-INT)
                              ("package" . ,RX-NAME)
                              ("no.of packages" . ,RX-INT))])
         (define-values (name pat) (values (car name-pat) (cdr name-pat)))
-        (new restricted-text-field% [label name] [enabled (not (string=? "Stock" name))]
+        (new restricted-text-field% [label name]
              [style '(single vertical-label)] [parent this] [pattern pat])))
 
     (define/public (non-empty-fields?)
       (andmap (λ (tf) (non-empty-string? (send tf get-value))) item-inputs))
 
     (define/public (get-item)
-      (apply Item (map (λ (tf) (send tf get-value)) item-inputs)))
+      (define final (append (take item-inputs 2)
+                            (list (list-ref item-inputs 1))
+                            (take-right item-inputs 2)))
+      (apply Item (map (λ (tf) (send tf get-value)) final)))
     ))
 
 (define lot-item-list%
   (class group-box-panel%
     (init parent [items #f])
     (super-new (parent parent) (label "Items"))
+    (inherit delete-child get-children)
 
     (define lot-rows (mutable-set))
 
-    (inherit delete-child get-children)
     (define (add-item)
       (when (non-empty-rows?)
         (define H (new horizontal-panel% (parent this) (stretchable-height #f)))
@@ -64,7 +67,10 @@
     (define lot-f
       (new restricted-text-field%
            (parent this) (pattern RX-INT) (label "Lot#") (style '(single vertical-label))
-           (stretchable-width #f) (min-width 20)))
+           (stretchable-width #f) (min-width 20)
+           (callback (λ (t e)
+                       (define lot# (send t get-value))
+                       (send t set-field-background (if (lot-taken? lot#) WARN-COLOR SAFE-COLOR))))))
 
 
     (define supplier-f
@@ -88,13 +94,9 @@
     (define/public (get-status) (send status-f get-string-selection))
 
     (define/public (non-empty-fields?)
-      (and (non-empty-string? (get-supplier))
+      (and (number? (get-supplier))
            (non-empty-string? (get-lot))
-           (non-empty-string? (get-status)))
-      (display "\n\n --")
-      (displayln (and (non-empty-string? (get-supplier))
-           (non-empty-string? (get-lot))
-           (non-empty-string? (get-status)))))
+           (non-empty-string? (get-status))))
     
     ))
 
@@ -108,26 +110,30 @@
 
     (define items-f (new lot-item-list% (parent this)))
 
-    (define (all-inputs-filled?) (and (send items-f non-empty-rows?)
-                                      (send head-f non-empty-fields?)))
+    (define (all-inputs-filled?)
+      (and (send items-f non-empty-rows?)
+           (send head-f non-empty-fields?)))
 
     (define (save!)
-      (define saved? (all-inputs-filled?))
-      (displayln saved?)
-      (when saved?
-        (define-values (supp lot#) (values (send head-f get-supplier) (send head-f get-lot)))
-        (insert-lot! #:lot# lot# #:supplier supp
-                     #:items (send items-f get-items)))
-      saved?)
+      (define filled? (all-inputs-filled?))
+        (when filled?
+          (let ([supp (send head-f get-supplier)]
+                [lot# (send head-f get-lot)])
+            (unless (lot-taken? lot#)
+              (insert-lot! #:lot# lot# #:supplier supp
+                           #:items (send items-f get-items))
+              lot#))))
 
     (define control-panel
       (new horizontal-pane% (parent this) (alignment '(left center)) (stretchable-height #f)))
     
     (define save-msg (new message% (parent control-panel) (label "unsaved changes")))
     (new button% (parent control-panel) (label "save!")
-         [callback (λ (_b _e) (when (save!)
-                                (send save-msg set-label "saved")
-                                (thread (λ () (sleep 10) (send save-msg set-label "")))))])))
+         [callback (λ (_b _e)
+                     (define lot# (save!))
+                     (unless (void? lot#)
+                       (send save-msg set-label "saved")
+                       (thread (λ () (sleep 10) (send save-msg set-label "")))))])))
 
 
 (define inventory-list%
@@ -145,24 +151,31 @@
     (define/public (redraw!)
       (send this clear)
       (for ([(date lot supp-name status) (select-lots)])
-        (append-row (list date lot supp-name status) lot)))
+        (append-row (list (~a date) (~a lot) (~a supp-name) (~a status)) lot)))
 
     (define/public (rm-selected!)
-      (define lot (get-data (get-selection)))
-      (dialog-prompt "EMPTY LOT"
-                     (format "Remove the lot and all its items?" lot)
-                     (λ (proceed?)
-                       (when proceed?
-                         (delete-inventory! lot)
-                         (redraw!)))))
+      (define selection (get-selection))
+      (when selection
+        (define lot (get-data selection))
+        (dialog-prompt "EMPTY LOT"
+                       (format "Remove the lot ~a and all its items?" lot)
+                       (λ (proceed?)
+                         (when proceed?
+                           (delete-inventory! lot)
+                           (redraw!))))))
+    (redraw!)
     ))
 
 
 (module+ main
   (define F (new frame% [label "listing"] (min-width MIN_WIN_WIDTH) (min-height MIN_WIN_HEIGHT)))
-  (new inventory-list% (parent F)
-       [callback (λ (il e) (void))])
+  (define il (new inventory-list% (parent F)
+       [callback (λ (il e) (void))]))
   (define h (new horizontal-panel% (parent F) (alignment '(center center)) (stretchable-height #f)))
   (new button% [label "add"] [parent h]
        [callback (λ (_ e) (define f (new lot-frame% (parent F))) (send f show #t))])
+  (new button% [label "reload"] [parent h]
+       [callback (λ (_ e) (send il redraw!))])
+  (new button% [label "del"] [parent h]
+       [callback (λ (_ e) (send il rm-selected!))])
   (send F show true))

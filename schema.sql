@@ -1,5 +1,3 @@
-PRAGMA foreign_keys=on;
-
 CREATE TABLE IF NOT EXISTS People(
 	id integer primary key,
 	name text DEFAULT '',
@@ -15,16 +13,6 @@ CREATE TABLE IF NOT EXISTS Contacts(
 	number text PRIMARY KEY NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS BankAccounts(
-	person REFERENCES People(id) ON DELETE CASCADE,
-	name text default '',
-	number text PRIMARY KEY,
-	IFSC text,
-	bank text,
-	branch text
-);
-
-
 CREATE TABLE IF NOT EXISTS Inventory(
 	lot integer PRIMARY KEY,
 	date datetime,
@@ -34,11 +22,11 @@ CREATE TABLE IF NOT EXISTS Inventory(
 );
 
 CREATE TABLE IF NOT EXISTS Items(
-	lot REFERENCES Inventory(lot),
+	lot REFERENCES Inventory(lot) ON DELETE CASCADE,
 	name text,
-	qty integer,
-	stock integer,
-	ppu number, -- price per unit
+	qty float,
+	stock float,
+	/* ppu number, -- price per unit */
 	package text, -- bag / butti / ...
 	package_count integer,
 	PRIMARY KEY (lot, name)
@@ -56,7 +44,8 @@ CREATE TABLE IF NOT EXISTS Sold(
 	invoice REFERENCES Invoice(number) ON UPDATE CASCADE,
 	lot,
 	item,
-	qty integer,
+	qty number,
+	ppu number,
 	amount number, -- amount = ppu * qty
 	package text,
 	package_count integer,
@@ -73,7 +62,16 @@ CREATE TABLE IF NOT EXISTS MoneyTransaction(
 	description text
 );
 
-CREATE view contact_labels
+CREATE TABLE IF NOT EXISTS BankAccounts(
+	person REFERENCES People(id) ON DELETE CASCADE,
+	name text default '',
+	number text PRIMARY KEY,
+	IFSC text,
+	bank text,
+	branch text
+);
+
+CREATE VIEW IF NOT EXISTS contact_labels
 AS
  select DISTINCT(label) from Contacts
  union

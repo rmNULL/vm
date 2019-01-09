@@ -63,39 +63,32 @@
   (class horizontal-panel%
     (init parent)
     (super-new (parent parent) (alignment '(left bottom)) (stretchable-height #f))
-    
-    (define lot-f
-      (new restricted-text-field%
-           (parent this) (pattern RX-INT) (label "Lot#") (style '(single vertical-label))
-           (stretchable-width #f) (min-width 20)
-           (callback (λ (t e)
-                       (define lot# (send t get-value))
-                       (send t set-field-background (if (lot-taken? lot#) WARN-COLOR SAFE-COLOR))))))
-
 
     (define supplier-f
-      (let-values ([(ids names)
-                    (for/lists (ids names)
-                              ([(id name _a) (select-suppliers)])
-                     (values id (format "(~a) ~a" id name)))])
-        (new choice-data% (label "supplier") (parent this) (datas ids) (choices names)
-             (style '(vertical-label))
-             (enabled (not (empty? names))))))
+      (new choice-data% (label "supplier") (parent this) (style '(vertical-label))))
 
     (define status-f
-      (new choice% (label "status") (parent this) (choices (list "open" "closed"))
-           (style '(vertical-label))
-           (enabled #f)))
+      (new message% (label "open for sale") (parent this)
+           (stretchable-width #f)
+           (stretchable-height #f)))
 
-    (define/public (get-lot) (send lot-f get-value))
-    (define/public (get-supplier)
-      (when (send supplier-f is-enabled?)
-        (send supplier-f get-data (send supplier-f get-selection))))
-    (define/public (get-status) (send status-f get-string-selection))
+    
+    (define (draw! lot#)
+      (define suppliers (if lot# (select-lot-) (select-suppliers))))
 
-    (define/public (non-empty-fields?)
+    
+
+    
+
+    #;(define/public (get-supplier)
+        (if (send supplier-f is-enabled?)
+          (send supplier-f get-data (send supplier-f get-selection))
+          (void)))
+
+    #;(define/public (get-status) (send status-f get-string-selection))
+
+    #;(define/public (non-empty-fields?)
       (and (number? (get-supplier))
-           (non-empty-string? (get-lot))
            (non-empty-string? (get-status))))
     
     ))
@@ -106,10 +99,25 @@
     (super-new (parent parent) (label label) (width MIN_WIN_WIDTH) (height MIN_WIN_HEIGHT))
 
     (define date-f (new message% (parent this) (label (date-today))))
+    (define lot-f
+      (new combo-field%
+           (parent this) (pattern RX-INT) (label "Lot#") (style '(single vertical-label))
+           (stretchable-width #f) (min-width 20)
+           (callback void)))
+    
     (define head-f (new lot-head-row% [parent this]))
-
     (define items-f (new lot-item-list% (parent this)))
 
+    
+    (define control-panel
+      (new horizontal-pane% (parent this) (alignment '(left center)) (stretchable-height #f)))
+    
+    (new button% (parent control-panel) (label "save!")
+         [callback void])))
+
+
+
+#|
     (define (all-inputs-filled?)
       (and (send items-f non-empty-rows?)
            (send head-f non-empty-fields?)))
@@ -123,59 +131,4 @@
               (insert-lot! #:lot# lot# #:supplier supp
                            #:items (send items-f get-items))
               lot#))))
-
-    (define control-panel
-      (new horizontal-pane% (parent this) (alignment '(left center)) (stretchable-height #f)))
-    
-    (define save-msg (new message% (parent control-panel) (label "unsaved changes")))
-    (new button% (parent control-panel) (label "save!")
-         [callback (λ (_b _e)
-                     (define lot# (save!))
-                     (unless (void? lot#)
-                       (send save-msg set-label "saved")
-                       (thread (λ () (sleep 10) (send save-msg set-label "")))))])))
-
-
-(define inventory-list%
-  (class extended-list-box%
-    (init parent)
-    (super-new [parent parent]
-               [label #f]
-               [style '(single column-headers vertical-label)]
-               #;[min-width MIN_WIN_WIDTH] #;[min-height MIN_WIN_HEIGHT]
-               [columns '("date" "lot" "supplier" "status")]
-               [choices '()])
-
-    (inherit get-selection get-data append-row)
-
-    (define/public (redraw!)
-      (send this clear)
-      (for ([(date lot supp-name status) (select-lots)])
-        (append-row (list (~a date) (~a lot) (~a supp-name) (~a status)) lot)))
-
-    (define/public (rm-selected!)
-      (define selection (get-selection))
-      (when selection
-        (define lot (get-data selection))
-        (dialog-prompt "EMPTY LOT"
-                       (format "Remove the lot ~a and all its items?" lot)
-                       (λ (proceed?)
-                         (when proceed?
-                           (delete-inventory! lot)
-                           (redraw!))))))
-    (redraw!)
-    ))
-
-
-(module+ main
-  (define F (new frame% [label "listing"] (min-width MIN_WIN_WIDTH) (min-height MIN_WIN_HEIGHT)))
-  (define il (new inventory-list% (parent F)
-       [callback (λ (il e) (void))]))
-  (define h (new horizontal-panel% (parent F) (alignment '(center center)) (stretchable-height #f)))
-  (new button% [label "add"] [parent h]
-       [callback (λ (_ e) (define f (new lot-frame% (parent F))) (send f show #t))])
-  (new button% [label "reload"] [parent h]
-       [callback (λ (_ e) (send il redraw!))])
-  (new button% [label "del"] [parent h]
-       [callback (λ (_ e) (send il rm-selected!))])
-  (send F show true))
+|#

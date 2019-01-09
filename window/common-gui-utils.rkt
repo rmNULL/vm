@@ -22,13 +22,22 @@
 
 (define choice-data%
   (class choice%
-    (init (datas '()) (choices '()) (label #f))
-    (unless (= (length datas) (length choices))
-      (raise "Length of datas and choices must be equal"))
-    (define @datas datas)
-    (define/public (get-data n) (list-ref @datas n))
-    (super-new [choices choices] (label label))
-    ))
+    (init (label #f))
+    (init-field (datas '()) (choices '()))
+
+    (define (check-args choices datas)
+      (unless (= (length datas) (length choices))
+        (raise "Length of datas and choices must be equal")))
+
+    (check-args choices datas)
+    
+    (define/public (get-data n) (list-ref datas n))
+    (super-new [choices choices] [label label])
+ 
+    (define/public (set cs ds)
+      (check-args cs ds)
+      (set! choices cs)
+      (set! datas ds))))
 
 
 (define (dialog-prompt window-name msg continue)

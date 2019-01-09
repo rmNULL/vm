@@ -234,6 +234,11 @@
               (Item-package item)
               (Item-package-count item)))
 
+(define (select-lot lot#)
+  (in-query DBCON "select datetime(date, 'localtime'), lot, name, status
+                   from Inventory JOIN People AS P ON supplier = P.id
+                   where lot = ?" lot#))
+
 (define (select-lots [status "open"])
   (in-query DBCON "select datetime(date, 'localtime'), lot, name, status
                    from Inventory JOIN People AS P ON supplier = P.id

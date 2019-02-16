@@ -1,9 +1,7 @@
-
 [] Remove deleted window on delete
   - when we delete a customer from customers-window the (deleted) customer
       window maybe open, in such case, close the customer window
 
-[] open only a single instance of a window in main-menu
 
 [] don't let multiple windows of same customer open
   ( tbh, don't let multiple windows of anything open unless explicitly
@@ -17,10 +15,6 @@ generalize them.
 
 [] (existing) Contact labels doesn't update,
    when new contact labels come
-[x] add/remove/modify contact fields in customer window
-
-[x] when a single contact-row(label, num) exists,
-  delete the data but keep the default row.
 
 
 ---
@@ -28,3 +22,4 @@ FIXES
 ---
 
 - Rewrite the restricted-text-field% dealing with the internals.
+

@@ -1,5 +1,6 @@
 #lang racket/base
-(require db)
+(require db racket/string)
+(require "./database/connection.rkt")
 (provide (all-defined-out))
 
 ;; Note --
@@ -14,12 +15,7 @@
                                          ")?")))
 (define RX-NAME #px"[A-Za-z]+(?:\\s[A-Za-z]*)*")
 
-(define (init-db)
-  (define D (sqlite3-connect
-             #:database (build-path (find-system-path 'home-dir) "vm" "vm.db")
-             #:mode 'create))
-  (query-exec D "pragma foreign_keys = on")
-  D)
+
 
 (define DBCON (init-db))
 (define sqlite-true  1 #;(query-value DBCON "select true"))
@@ -35,6 +31,10 @@
                     "select bill_number, date(date, 'localtime'), customer, total
                       from Invoice where number = ?" invoice-no))
 
+(define (invoice-available? invoice#)
+  (eq? #F (select-invoice invoice#)))
+
+
 (define (select-invoices)
   (in-query DBCON "select date(date, 'localtime'), number, bill_number, total from Invoice"))
 
@@ -44,8 +44,8 @@
    "select date(date, 'localtime'), number, bill_number, total
     from Invoice where customer = ?" customer))
 
-(define (select-lot#s)
-  (query-list DBCON "select lot from Inventory"))
+(define (select-lot#s [status "open"])
+  (query-list DBCON "select lot from Inventory where status = ?" status))
 
 
 
@@ -75,6 +75,12 @@
 
 (define (contact-labels)
   (query-list DBCON "select label from contact_labels"))
+
+(define (item-packages)
+  (query-list DBCON
+              "select DISTINCT package from Items where package is not null
+               UNION
+               select DISTINCT package from  Sold where package is not null"))
 
 
 (define (delete-contact! #:number number)
@@ -196,9 +202,17 @@
 (define (select-x-suppliers) (select-relation "supplier" #:exclusive? #t))
 
 (struct Item
-  (name quantity (stock #:mutable) package package-count))
+  (name quantity (stock #:mutable) package package-count) #:transparent)
 
-;; lot# (string/number) -> number
+
+;; Sets up a new lot with given items,
+;; associates the lot with the supplier,
+;; and returns the saved(/alloted) lot#
+;;;;;;;
+;;   [lot#] : (or number #f)
+;; supplier : number
+;;  [items] : list
+;; -> number
 (define (insert-lot! #:supplier p #:items (items '()) #:lot# (lot# #F))
   (unless (supplier? p)
     (raise "insert-lot!: not a supplier"))
@@ -252,10 +266,61 @@
                      where lot = $1 AND name = $2"
                      lot# name))))
 
+(define (select-available-item-names lot#)
+  (query-list DBCON
+              "select name from Items T JOIN Inventory I ON T.lot = I.lot
+               where I.lot = $1 AND stock > 0" lot#))
+
 (define (select-item-names lot#)
   (query-list DBCON
               "select name from Items T JOIN Inventory I ON T.lot = I.lot
                where I.lot = $1" lot#))
+
+
+;; #:date-to is only considered when #:date-from exists
+;; lot# : number 
+;; in-stock? : bool  ;; when true consider items in stock only.
+;; date-from : seconds
+;; date-to : seconds
+;; supplier : number ;; supplier id
+;; -> (sequence (values lot# Item-Name Stock) ... )
+;;
+(define (filter-inventory #:lot# [lot# #f]
+                          #:item-name [item #f]
+                          #:in-stock? [in-stock? #f]
+                          #:date-from [date-from #f]
+                          #:date-to [date-to #f]
+                          #:supplier [supplier-id #f])
+  ;; DISCLAIMER: BEWARE !!!!!!
+  (define qry (list))
+  (define args (list))
+  (when lot#
+    (set! qry  (cons "Inventory.lot = ?" qry))
+    (set! args (cons lot# args)))
+  (when item
+    (set! qry  (cons "Items.name like ?" qry))
+    (set! args (cons (format "%~a%" item) args)))
+  (when supplier-id
+    (set! qry  (cons "Inventory.supplier = ?" qry))
+    (set! args (cons supplier-id args)))
+  (when in-stock?
+    (set! qry  (cons "Items.stock > ?" qry))
+    (set! args (cons 0 args)))
+  (when date-from
+    ;; ASSUMES 'AND' will be interleaved between each query string
+    (set!  qry (cons "datetime(?,'unixepoch', 'localtime')" qry))
+    (set! args (cons (or date-to (current-seconds)) args))
+
+    (set! qry  (cons "Inventory.date BETWEEN datetime(?,'unixepoch', 'localtime')" qry))
+    (set! args (cons date-from args)))
+
+  (define query (string-append "select Inventory.lot, Items.name, Items.stock from
+                                Inventory JOIN Items ON Inventory.lot = Items.lot"
+                               (if (null? qry)
+                                   " "
+                                   (string-join qry " AND " #:before-first " WHERE "))))
+  (apply in-query DBCON query args))
+
 
 (define (select-items lot#)
   (in-query DBCON
@@ -264,49 +329,67 @@
              where I.lot = $1"
             lot#))
 
+
+
 (struct SellingItem
   (lot name ppu qty package n_packages))
 
-(define (sell! #:to customer #:items s-items  #:bill-number bill #:invoice-number [invoice-no #f])
-  ;; invoice-no should be a non-existing invoice# in the database
-  (start-transaction DBCON)
-  (if invoice-no
-      (query-exec
-       DBCON
-       "insert into Invoice(number, bill_number, date, customer) values ($1,$2, date('now'),$3)"
-       invoice-no bill customer)
-      
-      (begin
-        (query-exec DBCON
-                    "insert into Invoice(bill_number, date, customer) values ($1,date('now'),$2)"
-                    bill customer)
-        (set! invoice-no (last-insert-rowid))))
+(define (sell! #:to customer #:items s-items  #:bill-number bill
+               ;; invoice-no should be a non-existing invoice# in the database
+               #:invoice-number [invoice-no #f]
+               ;; misc-items (listof (cons desc amt))
+               #:misc [misc-exp '()]
+               #:total total)
   
-  (for ([item s-items])
-    (insert-invoice-item! invoice-no item))
-  (commit-transaction DBCON))
-
-(define (insert-invoice-item! invoice s-item)
-  (define-values (name lot ppu qty)
-    (values (SellingItem-name s-item) (SellingItem-lot s-item)
-            (SellingItem-ppu s-item) (SellingItem-qty s-item)))
+  ;; desc-amt = (cons desc amt)
+  (define (insert-invoice-miscexp! invoice-no desc-amt)
+    (query-exec DBCON "insert into SoldMisc(invoice, description, amount) values($1, $2, $3)"
+                invoice-no (car desc-amt) (cdr desc-amt)))
   
-  (define instock (Item-stock (select-item lot name)))
-  (define updated-stock (- instock qty))
+  (define (insert-invoice-item! invoice s-item)
+    (define-values (name lot ppu qty)
+      (values (SellingItem-name s-item) (SellingItem-lot s-item)
+              (SellingItem-ppu s-item) (SellingItem-qty s-item)))
   
-  (when (>= updated-stock 0)
-    (define amount (* ppu qty))
-    (define pkg (SellingItem-package s-item))
-    (define n_pkgs (SellingItem-n_packages s-item))
-    (start-transaction DBCON)
-    (query-exec DBCON
-                "insert into Sold
+    (define instock (Item-stock (select-item lot name)))
+    (define updated-stock (- instock qty))
+  
+    (when (>= updated-stock 0)
+      (define amount (* ppu qty))
+      (define pkg (SellingItem-package s-item))
+      (define n_pkgs (SellingItem-n_packages s-item))
+      (start-transaction DBCON)
+      (query-exec DBCON
+                  "insert into Sold
                  (invoice, lot, item, ppu, qty, amount, package, package_count) values
                  (     $1,  $2,   $3,  $4,  $5,     $6,      $7,            $8)"
                   invoice  lot  name  ppu  qty   amount     pkg         n_pkgs)
 
-    (update-item-stock! lot name updated-stock)
-    (commit-transaction DBCON)))
+      (update-item-stock! lot name updated-stock)
+      (commit-transaction DBCON)))
+  
+  (start-transaction DBCON)
+  (if invoice-no
+      (query-exec
+       DBCON
+       "insert into
+        Invoice(number, bill_number, customer, total, date) values ($1,$2, $3, $4, date('now'))"
+       invoice-no bill customer total)
+      
+      (begin
+        (query-exec
+         DBCON
+         "insert into Invoice(bill_number, customer, total,        date) values
+                             (         $1,       $2,    $3, date('now'))"
+                                      bill customer  total)
+        (set! invoice-no (last-insert-rowid))))
+  
+  (for ([item s-items])
+    (insert-invoice-item! invoice-no item))
+  (for ([desc-amt misc-exp])
+    (insert-invoice-miscexp! invoice-no desc-amt))
+  (commit-transaction DBCON))
+
 
 (define (update-item-stock! lot item-name stock)
   (query-exec DBCON
@@ -314,10 +397,7 @@
               stock lot item-name))
 
 
-(define (lot-taken? lot#) (query-maybe-value DBCON "select true from Inventory where lot = ?" lot#))
-
-
-(define (close-db D)
-  (when (and (connection? D)
-             ( connected? D))
-    (disconnect D)))
+(define lot-taken?
+  (let ([qry (prepare DBCON "select 1 from Inventory where lot = ?")])
+    (λ (lot#)
+      (query-maybe-value DBCON qry lot#))))

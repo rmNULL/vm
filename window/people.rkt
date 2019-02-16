@@ -28,7 +28,7 @@
       (define text-field
         (new text-field% [label (symbol->string table-column)] [parent this]
              [init-value (selector @name-addr)]))
-      (send text-field set-field-background (make-object color% "DarkGray"))
+      #;(send text-field set-field-background (make-object color% "DarkGray"))
 
       (λ ()
         (define previous-entry (selector @name-addr))
@@ -99,11 +99,11 @@
       (when id
         (dialog-prompt (string-append "delete " @relation)
                        "you agree to destroy all the data associated with this person.
-                        This might include Invoices, Bank Accounts etc"
+                        \rThis might include Invoices, Bank Accounts etc"
                        (λ (proceed?)
-                       (when proceed?
-                         (delete-person! id)
-                         (redraw!))))))
+                         (when proceed?
+                           (delete-person! id)
+                           (redraw!))))))
 
     ))
 
@@ -111,7 +111,8 @@
 (define customer-frame%
   (class frame%
     (init parent [id #f])
-    (super-new (parent parent) (label ""))
+    (super-new [parent parent] [label ""]
+               [min-height (* 3/4 MIN_WIN_HEIGHT)] [min-width (* 3/4 MIN_WIN_WIDTH)])
 
     (define invoices-list
       (when id
@@ -120,21 +121,18 @@
     (define name-addr-contact (new basic-details-panel% [parent this] [person id]))
     (send this set-label (send name-addr-contact get-name))
     
-    
     (inherit get-parent)
-    (define (save! b e)
-      (send name-addr-contact save!)
-      (send b set-label "update!")
-      (send (get-parent) redraw!))
-  
-    (define save-button
-      (new button% (parent this) (label (if id "update" "save!")) (callback save!)))
+    (define (save!) (send name-addr-contact save!))
+    (define (redraw!) (send (get-parent) redraw!))
+    (define (close-window) (send this show #f))
 
-    (define save-and-exit-button
-      (new button% (parent this) (label (string-append (if id "update" "save!") "& exit"))
-           (callback (λ (b e)
-                       (save! b e)
-                       (send this show #f)))))
+    (let ([mb (new menu-bar% [parent this])])
+      (define m (new menu% [label "Customer"] [parent mb]))
+      (new menu-item% [parent m] [label "Save"] [callback (λ (_m _c) (save!) (redraw!))])
+      (new menu-item% [parent m] [label "Save && Exit"]
+           [callback (λ (_m _c) (save!) (close-window))])
+      (new separator-menu-item% [parent m])
+      (new menu-item% [parent m] [label "Cancel && Exit"] [callback (λ (_m _c) (close-window))]))
     ))
 
 (define (draw-control-row parent F% L)
@@ -164,27 +162,27 @@
 (define supplier-frame%
   (class frame%
     (init parent [id #f])
-    (super-new (parent parent) (label ""))
-  
+    (super-new [parent parent] [label ""]
+               [min-height (* 3/4 MIN_WIN_HEIGHT)] [min-width (* 3/4 MIN_WIN_WIDTH)])
+    
     (define name-addr-contact (new basic-details-panel% [parent this] [person id]
                                    [relation 'supplier]))
     (send this set-label (send name-addr-contact get-name))
-    ;;;  bank accounts left out
+    ;; TODO: bank accounts left out
     
     (inherit get-parent)
-    (define (save! b e)
-      (send name-addr-contact save!)
-      (send b set-label "update!")
-      (send (get-parent) redraw!))
-  
-    (define save-button
-      (new button% (parent this) (label (if id "update" "save!")) (callback save!)))
+    (define (save!) (send name-addr-contact save!))
+    (define (redraw!) (send (get-parent) redraw!))
+    (define (close-window) (send this show #f))
 
-    (define save-and-exit-button
-      (new button% (parent this) (label (string-append (if id "update" "save!") "& exit"))
-           (callback (λ (b e)
-                       (save! b e)
-                       (send this show #f)))))
+    (let ([mb (new menu-bar% [parent this])])
+      (define m (new menu% [label "Supplier"] [parent mb]))
+      (new menu-item% [parent m] [label "Save"] [callback (λ (_m _c) (save!) (redraw!))])
+      (new menu-item% [parent m] [label "Save && Exit"]
+           [callback (λ (_m _c) (save!) (close-window))])
+      (new separator-menu-item% [parent m])
+      (new menu-item% [parent m] [label "Cancel && Exit"] [callback (λ (_m _c) (close-window))]))
+    
     ))
 
 (define suppliers-frame% 
@@ -195,7 +193,5 @@
     (define L (new people-list-box% [parent this] [relation "supplier"]))
     
     (define control-row (draw-control-row this F% L))
-
     (define/public (redraw!) (send L redraw!))
-
     (redraw!)))

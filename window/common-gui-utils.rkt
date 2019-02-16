@@ -1,9 +1,10 @@
 #lang racket/gui
 (provide (all-defined-out))
 
-(define MIN_WIN_WIDTH  500)
-(define MIN_WIN_HEIGHT 300)
+(define MIN_WIN_WIDTH  800)
+(define MIN_WIN_HEIGHT 600)
 (require racket/date)
+(require "./enhanced-text-input.rkt")
 
 (define DAYS '("Sun" "Mon" "Tue" "Wed" "Thu" "Fri" "Sat"))
 (define MONTHS '(#f "Jan" "Feb" "Mar" "Apr" "May" "Jun" "Jul" "Aug" "Sep" "Oct" "Nov" "Dec"))
@@ -16,7 +17,7 @@
     (format "~a ~a, ~a ~a" wday day mon year)))
 
 (define SAFE-COLOR (send the-color-database find-color "Medium Turquoise"))
-(define WARN-COLOR (send the-color-database find-color "orange"))
+(define WARN-COLOR (send the-color-database find-color "OrangeRed"))
 (define DEF-BG-COLOR (send the-color-database find-color "white"))
 
 
@@ -30,10 +31,16 @@
         (raise "Length of datas and choices must be equal")))
 
     (check-args choices datas)
-    
-    (define/public (get-data n) (list-ref datas n))
     (super-new [choices choices] [label label])
- 
+    
+    (define/public (get-data n)
+      (if (empty? datas) #f (list-ref datas n)))
+    
+    (inherit get-selection)
+    (define/public (get-selection-data)
+      (get-data (get-selection)))
+
+    ;; TODO: test, write doc
     (define/public (set cs ds)
       (check-args cs ds)
       (set! choices cs)
@@ -72,7 +79,7 @@
       (and selection (send this get-data selection)))
     
     (define/public (append-row labels (data #f))
-      ;;; REFACTOR ... .. .
+      ;;; TODO: REFACTOR( use contracts )
       (let ([cols (length (get-column-labels))])
         (unless (andmap label-string? labels)
           (raise (format "expected list of label strings, instead given ~a"
@@ -97,4 +104,35 @@
                            (define pat-match (regexp-match pattern (get-value)))
                            (define v (if pat-match (first pat-match) ""))
                            (set-value v)
-                           (when callback (callback t e)))])))
+                           (when (and pat-match callback) (callback t e)))])))
+
+
+(define (string->date str)
+  (let* ([t (string-trim str)]
+         [m (regexp-match #px"^([0-9]+)/([0-9]+)/([0-9]{4})$" t)])
+    (and m
+         (let ((day (string->number (list-ref m 1)))
+               (month (string->number (list-ref m 2)))
+               (year (string->number (list-ref m 3))))
+           (with-handlers (((lambda (e) #t) (lambda (e) #f)))
+             (find-seconds 0 0 0 day month year))))))
+
+(define (date->string seconds)
+  (define date (seconds->date seconds))
+  (string-append
+   (~a (date-day date) #:width 2 #:left-pad-string "0" #:align 'right)
+   "/"
+   (~a (date-month date) #:width 2 #:left-pad-string "0" #:align 'right)
+   "/"
+   (~a (date-year date) #:width 4 #:left-pad-string "0" #:align 'right)))
+
+(define seconds? number?)
+(define date-input-field%
+  (validating-mixin string->date date->string #;text-field% (cue-mixin "DD/MM/YYYY" text-field%)))
+
+
+(define item-input-field%
+  (validating-mixin identity identity text-field%))
+
+;; TODO: COMMON LABELS FOR ALL UI ELEMENTS
+;; (define LABELS #hash())

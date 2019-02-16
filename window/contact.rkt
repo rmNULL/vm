@@ -2,7 +2,6 @@
 (require "../vm.rkt")
 (require "./common-gui-utils.rkt")
 
-
 (provide contact-card%)
 
 (define contact-panel%
@@ -21,7 +20,7 @@
        (not (string-ci=? @init-lab (get-number-label)))
        (not (string-ci=? @init-num (get-number)))))
     
-    (super-new (parent parent) (alignment '(left top)) (stretchable-width #f) (stretchable-height #f))
+    (super-new (parent parent) (alignment '(left top)) (stretchable-height #f))
  
     (define label-field
       (new combo-field% [parent this] [label #f]
@@ -31,6 +30,7 @@
       (new restricted-text-field%
            [pattern #px"\\d{,16}"]
            [parent this] [label #f] [init-value number]
+           [stretchable-width #f]
            ))
 
     (new button% [parent this] [label "new"]
@@ -74,8 +74,7 @@
   (class group-box-panel%
     (init parent person-id)
     (define @pid person-id)
-    (define/public (get-person-id) @pid)
-    (define/public (set-person-id! v) (set! @pid v))
+
     
     (define to-delete '())
     (define (empty-to-delete!) (set! to-delete '()))
@@ -101,18 +100,34 @@
       (for ([row (in-list (send this get-children))])
         (send row save!)))
 
+    (define (clear!)
+      (for ([row (in-list (send this get-children))])
+        (super delete-child row)))
+
     (define (delete!)
       (for ([row (in-list to-delete)])
-        (send row delete!)))
-
-    (define/public (update!)
-      (save!)
-      (delete!)
+        (send row delete!))
       (empty-to-delete!))
 
-    (define contacts (if @pid (contact-details #:of @pid) '()))
-    (for ([(label number) contacts])
-      (add-contact label number))
+    (define/public (update!)
+      ;; clear! should be called only after save!, the order matters
+      ;; as clear! deletes the children
+      (save!)
+      (delete!)
+      (clear!)
+      (draw!))
 
-    (when (empty? (send this get-children)) (add-contact))
+    (define (draw!)
+      (define contacts (if @pid (contact-details #:of @pid) '()))
+      (define added?
+        (for/last ([(label number) contacts])
+          (add-contact label number)))
+      (unless added? (add-contact)))
+
+    (draw!)
+    
+    (define/public (get-person-id) @pid)
+    (define/public (set-person-id! v)
+      (set! @pid v)
+      (draw!))
     ))

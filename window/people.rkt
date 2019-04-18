@@ -3,7 +3,8 @@
          "./contact.rkt"
          "./invoice.rkt"
          "../vm.rkt")
-(provide customers-frame% suppliers-frame%)
+(provide ; customers-panel% customers-frame% suppliers-panel% suppliers-frame%
+         draw-customers draw-suppliers)
 
 (define basic-details-panel%
   (class vertical-panel%
@@ -76,11 +77,12 @@
                  (send lb selected-row))
          (define id (send lb selected-row-data))
          
-         (send (new F% [id id] [parent parent]) show #t)
+         (send (new F% [id id] [parent (and (parent . is-a? . frame%) parent)])
+               show #t)
       ))
     
     (super-new  [parent parent] [label #F] [choices '()]
-                [min-width MIN_WIN_WIDTH] [min-height MIN_WIN_HEIGHT]
+                [min-width (* 1/2 MIN_WIN_WIDTH)] [min-height (* 1/2 MIN_WIN_HEIGHT)]
                 [style '(single column-headers)]
                 [callback draw-person]
                 [columns '("Name" "Address" "Phone no.s")])
@@ -90,8 +92,9 @@
     (define/public (redraw!)
       (clear)
       (for ([(id name addr) (select-relation @relation)])
-        (define pnos (string-join (phone-numbers #:of id) "\n"))
-        (append-row (list name addr pnos) id)))
+        (define pnos (phone-numbers #:of id))
+        (define pno (string-join (take pnos (min (length pnos) 2)) "\n"))
+        (append-row (list name addr pno) id)))
 
     
     (define/public (rm-selected!)
@@ -111,7 +114,7 @@
 (define customer-frame%
   (class frame%
     (init parent [id #f])
-    (super-new [parent parent] [label ""]
+    (super-new [parent parent] [label "New Customer"]
                [min-height (* 3/4 MIN_WIN_HEIGHT)] [min-width (* 3/4 MIN_WIN_WIDTH)])
 
     (define invoices-list
@@ -119,7 +122,7 @@
         (new invoices-list% [parent this] [customer-id id] [label "Invoices"])))
   
     (define name-addr-contact (new basic-details-panel% [parent this] [person id]))
-    (send this set-label (send name-addr-contact get-name))
+    (when id (send this set-label (send name-addr-contact get-name)))
     
     (inherit get-parent)
     (define (save!) (send name-addr-contact save!))
@@ -135,44 +138,20 @@
       (new menu-item% [parent m] [label "Cancel && Exit"] [callback (λ (_m _c) (close-window))]))
     ))
 
-(define (draw-control-row parent F% L)
-  (define control-row
-    (new horizontal-panel% (parent parent) (alignment '[center center]) (stretchable-height #f)))
-  (new button% [label "reload values"] [parent control-row]
-       [callback (λ (b e) (send L redraw!))])
-  (new button% [label "new"] [parent control-row]
-       [callback  (λ (b e) (send (new F% (parent parent)) show #t))])
-  (new button% [label "delete"] [parent control-row]
-       [callback (λ (b e) (send L rm-selected!))])
-  control-row)
-
-(define customers-frame% 
-  (class frame%
-    (init parent)
-    (super-new (parent parent) (label "Customers"))
-    (define F% customer-frame%)
-    (define L (new people-list-box% [parent this] [relation "customer"]))
-
-    (define control-row (draw-control-row this F% L))
-    
-    (define/public (redraw!) (send L redraw!))
-    (redraw!)))
-
-
 (define supplier-frame%
   (class frame%
     (init parent [id #f])
-    (super-new [parent parent] [label ""]
+    (super-new [parent parent] [label "New Supplier"]
                [min-height (* 3/4 MIN_WIN_HEIGHT)] [min-width (* 3/4 MIN_WIN_WIDTH)])
     
     (define name-addr-contact (new basic-details-panel% [parent this] [person id]
                                    [relation 'supplier]))
-    (send this set-label (send name-addr-contact get-name))
+    (when id (send this set-label (send name-addr-contact get-name)))
     ;; TODO: bank accounts left out
     
     (inherit get-parent)
     (define (save!) (send name-addr-contact save!))
-    (define (redraw!) (send (get-parent) redraw!))
+    (define (redraw!) (when (get-parent) (send (get-parent) redraw!)))
     (define (close-window) (send this show #f))
 
     (let ([mb (new menu-bar% [parent this])])
@@ -182,16 +161,71 @@
            [callback (λ (_m _c) (save!) (close-window))])
       (new separator-menu-item% [parent m])
       (new menu-item% [parent m] [label "Cancel && Exit"] [callback (λ (_m _c) (close-window))]))
-    
     ))
 
-(define suppliers-frame% 
-  (class frame%
+(define (draw-control-row parent F% L)
+  (define control-row
+    (new horizontal-panel% (parent parent) (alignment '[center center]) (stretchable-height #f)))
+  (new button% [label "reload values"] [parent control-row]
+       [callback (λ (b e) (send L redraw!))])
+  (new button% [label "new"] [parent control-row]
+       [callback  (λ (b e) (send (new F% (parent #f)) show #t))])
+  (new button% [label "delete"] [parent control-row]
+       [callback (λ (b e) (send L rm-selected!))])
+  control-row)
+
+(define (draw-customers parent)
+    (define F% customer-frame%)
+    (define L (new people-list-box% [parent parent] [relation "customer"]))
+    (define control-row (draw-control-row parent F% L))
+    (send L redraw!))
+
+(define (draw-suppliers parent)
+    (define F% supplier-frame%)
+    (define L (new people-list-box% [parent parent] [relation "supplier"]))
+    (define control-row (draw-control-row parent F% L))
+    (send L redraw!))
+
+
+#|
+(define customers-panel%
+  (class vertical-panel%
     (init parent)
-    (super-new (parent parent) (label "Suppliers"))
+    (super-new (parent parent))
+    (define F% customer-frame%)
+    (define L (new people-list-box% [parent this] [relation "customer"]))
+
+    (define control-row (draw-control-row this F% L))
+    
+    (define/public (redraw!) (send L redraw!))
+    (redraw!)))
+
+(define customers-frame% 
+  (class frame%
+    (init [parent #f])
+    (super-new (parent parent) (label "Customers"))
+    (define CP (new customers-panel% [parent this]))
+    (define/public (redraw!) (send CP redraw!))
+    (redraw!)))
+
+
+(define suppliers-panel% 
+  (class vertical-panel%
+    (init parent)
+    (super-new (parent parent))
     (define F% supplier-frame%)
     (define L (new people-list-box% [parent this] [relation "supplier"]))
-    
+
     (define control-row (draw-control-row this F% L))
     (define/public (redraw!) (send L redraw!))
     (redraw!)))
+
+(define suppliers-frame% 
+  (class frame%
+    (init [parent #f])
+    (super-new (parent parent) (label "Suppliers"))
+    (define SP (new suppliers-panel% [parent this]))
+    (define/public (redraw!) (send SP redraw!))
+    (redraw!)))
+|#
+

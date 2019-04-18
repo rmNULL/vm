@@ -82,17 +82,23 @@
       ;;; TODO: REFACTOR( use contracts )
       (let ([cols (length (get-column-labels))])
         (unless (andmap label-string? labels)
-          (raise (format "expected list of label strings, instead given ~a"
+          (error (format "expected list of label strings, instead given ~a"
                          labels)))
         (unless (= cols (length labels))
-          (raise (format "labels should contain ~a label strings, instead given ~v"
+          (error (format "labels should contain ~a label strings, instead given ~v"
                          cols labels))))
  
       (define row (get-number))
       (-append (first labels) data)
       (for ([label (in-list (rest labels))]
             [column (in-naturals 1)])
-        (set-string row label column)))))
+        (set-string row label column)))
+
+    (define N (length (get-column-labels)))
+    (define win-width (send this get-width))
+    (define col-width (floor (* (/ 1 N) win-width)))
+    (for ([col N])
+      (send this set-column-width col col-width (round (* 1/2 col-width)) win-width))))
 
 
 (define restricted-text-field%

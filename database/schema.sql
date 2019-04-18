@@ -77,6 +77,12 @@ CREATE TABLE IF NOT EXISTS BankAccounts(
 	branch text
 );
 
+CREATE TABLE IF NOT EXISTS InventoryOtherCosts(
+       id integer PRIMARY KEY,
+       lot references Inventory(lot) ON DELETE CASCADE,
+       lorry_frieght number DEFAULT 0
+);
+
 CREATE VIEW IF NOT EXISTS contact_labels
 AS
  select DISTINCT(label) from Contacts

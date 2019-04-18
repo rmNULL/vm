@@ -2,7 +2,7 @@
 (require "./common-gui-utils.rkt"
          "../vm.rkt")
 
-(provide inventory-frame%)
+(provide draw-inventory #;inventory-frame% #;inventory-panel%)
 
 (define lot-item-row%
   (class horizontal-panel%
@@ -31,8 +31,8 @@
 
     (define/public (get-item)
       (define item-fs (append (take item-inputs 2)
-                            (list (list-ref item-inputs 1)) ; stock = qty
-                            (take-right item-inputs 2)))
+                              (list (list-ref item-inputs 1)) ; stock = qty
+                              (take-right item-inputs 2)))
       (apply Item (map (λ (tf) (send tf get-value)) item-fs)))
     ))
 
@@ -69,7 +69,8 @@
 (define create-lot-frame%
   (class frame%
     (init parent)
-    (super-new [parent parent] [label "New Lot"])
+    (super-new [parent parent] [label "New Lot"]
+               [min-height (* 3/4 MIN_WIN_HEIGHT)] [min-width (* 3/4 MIN_WIN_WIDTH)])
 
     (define lot#-supp-row (new horizontal-panel% [parent this] [stretchable-height #f]))
     #;(define status-msg (new message% [label ""] [parent this] [stretchable-height #f]))
@@ -138,25 +139,13 @@
            [callback (λ (m e) (save!))])
       (new menu-item%
            [parent m]
-           [label "Save and close"]
-           [callback (λ (m e) (save!) (send this show #f))]))
+           [label "Save and Exit"]
+           [callback (λ (m e) (when (number? (save!)) (send this show #f)))]))
     ))
 
-(define inventory-frame%
-  (class frame%
-    (init [parent #f])
-    (super-new [label "Inventory"] [parent parent])
-
-    (let ()
-      (define mb (new menu-bar% [parent this]))
-      (define m (new menu% [label "Add"] [parent mb]))
-      (new menu-item% [parent m] [label "Lot"]
-           [callback (λ (_m _c)
-                       (send (new create-lot-frame% [parent this]) show #t))]))
-    
-
+(define (draw-inventory parent)
     (define search-bar
-      (new horizontal-panel% [parent this] [stretchable-height #f]))
+      (new horizontal-panel% [parent parent] [stretchable-height #f]))
 
     (define search-lot# (new restricted-text-field%
                              [pattern RX-INT]
@@ -198,11 +187,12 @@
                                            ([(id name _addr) (select-suppliers)])
                                   (values id name))])
         (new choice-data% [label "Supplier"] [style '(vertical-label)] [parent search-bar]
-             [datas ids] [choices names])))
+             [datas ids] [choices names]
+             [callback (λ (c e) (when (get-supplier-id) (set-items-list!)))])))
 
     (define toggle-bar
       ;; If the items are are selected, then the selected search item is considered
-      (let ([box (new group-box-panel% [label "Consider For Search?"] [parent this]
+      (let ([box (new group-box-panel% [label "Consider For Search?"] [parent parent]
            [alignment '(left center)] [stretchable-height #f])])
         (new horizontal-panel% [parent box] [stretchable-height #f])))
 
@@ -235,8 +225,8 @@
       (new extended-list-box%
            [label #f]
            [choices '()] ;; appended later
-           [parent this]
-           [columns '("Lot#" "Item" "Stock")]
+           [parent parent]
+           [columns '("Lot#" "Item" "Qty" "Stock" "Pkg" "Pkg Count")]
            [style '(multiple column-headers)]))
     
     (define (set-items-list!)
@@ -248,9 +238,39 @@
                           #:date-from (get-date-from)
                           #:date-to (get-date-to)
                           #:supplier (get-supplier-id)))
-      (for ([(lot# item stk) rows])
-        (define row (list (~a lot#) item (~a stk)))
+      (for ([(lot# item qty stk pkg pkgc) rows])
+        (define row (list (~a lot#) item (~a qty) (~a stk) pkg (~a pkgc)))
         (send items-list append-row row)))
 
-    (set-items-list!)
-    ))
+  (set-items-list!)
+
+  (define CR (new horizontal-panel% [parent parent] [stretchable-height #f]
+                  [alignment '(center top)]))
+  (new button% [parent CR] [label "Reload"] [callback (λ (b e) (set-items-list!))])
+  (new button% [parent CR] [label "Add Lot"]
+       [callback (λ (_m _c) (send (new create-lot-frame% [parent #f]) show #t))]))
+
+
+#|
+(define inventory-panel%
+  (class vertical-panel%
+    (init parent)
+    (super-new [parent parent])
+    (draw-inventory this)))
+
+(define inventory-frame%
+  (class frame%
+    (init [parent #f])
+    (super-new [label "Inventory"] [parent parent])
+
+    (let ()
+      (define mb (new menu-bar% [parent this]))
+      (define m (new menu% [label "Add"] [parent mb]))
+      (new menu-item% [parent m] [label "Lot"]
+           [callback (λ (_m _c)
+                       (send (new create-lot-frame% [parent this]) show #t))]))
+
+    (new inventory-panel% [parent this])))
+|#
+
+

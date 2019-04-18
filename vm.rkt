@@ -258,13 +258,15 @@
                    from Inventory JOIN People AS P ON supplier = P.id
                    where status = ?" status))
 
-(define (select-item lot# name)
-  (apply Item
-         (vector->list
-          (query-row DBCON
-                     "select name, qty, stock, package, package_count from Items
+(define (__select-item lot# name)
+  (query-maybe-row DBCON
+                   "select name, qty, stock, package, package_count from Items
                      where lot = $1 AND name = $2"
-                     lot# name))))
+                   lot# name))
+
+(define (select-item lot# name)
+  (define i (__select-item lot# name))
+  (and i (apply Item (vector->list i))))
 
 (define (select-available-item-names lot#)
   (query-list DBCON
@@ -283,7 +285,7 @@
 ;; date-from : seconds
 ;; date-to : seconds
 ;; supplier : number ;; supplier id
-;; -> (sequence (values lot# Item-Name Stock) ... )
+;; -> (sequence (values lot# Item.*) ... )
 ;;
 (define (filter-inventory #:lot# [lot# #f]
                           #:item-name [item #f]
@@ -314,7 +316,7 @@
     (set! qry  (cons "Inventory.date BETWEEN datetime(?,'unixepoch', 'localtime')" qry))
     (set! args (cons date-from args)))
 
-  (define query (string-append "select Inventory.lot, Items.name, Items.stock from
+  (define query (string-append "select Items.*  from
                                 Inventory JOIN Items ON Inventory.lot = Items.lot"
                                (if (null? qry)
                                    " "

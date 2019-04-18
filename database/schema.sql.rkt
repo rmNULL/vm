@@ -63,6 +63,10 @@
 	IFSC text,
 	bank text,
 	branch text)")
+    (InventoryOtherCosts . "CREATE TABLE IF NOT EXISTS InventoryOtherCosts(
+       id integer PRIMARY KEY,
+       lot references Inventory(lot) ON DELETE CASCADE,
+       lorry_frieght number default 0)")
     (contact_labels . "CREATE VIEW IF NOT EXISTS contact_labels AS
  select DISTINCT(label) from Contacts
  union

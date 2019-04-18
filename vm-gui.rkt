@@ -5,36 +5,53 @@
 
 (define main-window
   (new frame% [label "VM"]
-       [min-width 800] [min-height 600]
+       [width 800] [height 600]
        [stretchable-width #t] [stretchable-height #t]))
-(define icon-path
-  (build-path (find-system-path 'home-dir) "vm" "resources" "icons" "logo" "VM_32.png"))
+
+(define logo-dir (build-path (current-directory) "resources" "icons" "logo"))
+(define icon-path (build-path logo-dir "VM_32.png"))
 (define VM-ICON (read-bitmap icon-path))
 (send main-window set-icon VM-ICON)
 
-(define header-font (make-font #:family 'decorative #:size 16))
-(define title-font (make-font #:style 'slant #:weight 'normal))
+;(define header-font (make-font #:family 'decorative #:size 20))
+;(define title-font (make-font #:style 'slant #:weight 'normal))
 
-(define (draw- F%)
-  (let ([F (if F%
-            (new F% [min-width 800] [min-height 600] [parent main-window])
-            (new frame% [min-width 100] [parent main-window] [label "..."]))])
-    (send F set-icon VM-ICON)
-    (λ (b e)
-      (unless (send F is-shown?) (send F show true)))))
+(define (clear-tab-contents) (send T change-children (λ (c) (list))))
+
+(define MAIN-MENU-TITLES-RFN
+  `(("Customers" . ,draw-customers)
+    ("Inventory" . ,draw-inventory)
+    ("Suppliers" . ,draw-suppliers)
+    ("Invoices"  . ,draw-invoices)))
+
+(define T
+  (new tab-panel%
+     [parent main-window]
+     [choices (map car MAIN-MENU-TITLES-RFN)]
+     [callback (λ (t e)
+                 (render-T-content (cdr (list-ref MAIN-MENU-TITLES-RFN (send t get-selection)))))]))
 
 
-(for ((label1 '("Customers" "Inventory" #;"Ledger"))
-      (f1% (list customers-frame% inventory-frame% #f))
-      (label2 '("Suppliers" "Invoices" #;"Accounts"))
-      (f2% (list suppliers-frame% invoices-frame% #f)))
-  (define t (new horizontal-panel% [parent main-window]))
+(define (render-T-content render-fn)
+  (clear-tab-contents)
+  (render-fn T))
 
-  (new button% [parent t] [font header-font] [label label1]
-       [stretchable-width #t] [stretchable-height #t]
-       [callback (draw- f1%)])
-  (new button% [parent t] [font header-font] [label label2]
-       [stretchable-width #t] [stretchable-height #t]
-       [callback (draw- f2%)]))
+(define VM-GREETING-SIZE 512)
+(define VM-GREETING (read-bitmap (build-path logo-dir (format "VM_~a.png" VM-GREETING-SIZE))))
+(void(new (class canvas%
+            (super-new)
+            (define/override (on-event e)
+              (when (send e button-changed?)
+                (define t-p% (first MAIN-MENU-TITLES-RFN))
+                (render-T-content (cdr t-p%)))))
+     [parent T]
+     [paint-callback (λ (c dc)
+                       ;; sw - screen width
+                       (define-values [sw sh] (send c get-client-size))
+                       ;; scx - screen center-x
+                       (define-values [scx scy] (values (/ sw 2) (/ sh 2)))
+                       (define o (/ VM-GREETING-SIZE 2))
+                       (send dc draw-bitmap VM-GREETING (- scx 256) (- scy 256)))]))
 
+;;(send main-window resize 0 0)
 (send main-window show true)

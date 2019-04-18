@@ -16,6 +16,15 @@ generalize them.
 [] (existing) Contact labels doesn't update,
    when new contact labels come
 
+------
+FEATURES
+------
+[] Add Lorry Freight field while adding a Lot
+[] Fill in available stk as selling stock while creating an invoice
+[] Open Frames in full screen by default
+[] While selling an Item, the package field should contain the default value
+   of the box it was received in.
+
 
 ---
 FIXES

@@ -21,17 +21,19 @@
        (not (string-ci=? @init-num (get-number)))))
     
     (super-new (parent parent) (alignment '(left top)) (stretchable-height #f))
- 
+    
     (define label-field
       (new combo-field% [parent this] [label #f]
-           [choices CONTACT-LABELS] [init-value number-label]))
+           [choices CONTACT-LABELS]
+           [init-value number-label]
+           [stretchable-width #f]
+           [stretchable-height #f]))
     
     (define number-field
       (new restricted-text-field%
            [pattern #px"\\d{,16}"]
            [parent this] [label #f] [init-value number]
-           [stretchable-width #f]
-           ))
+           [stretchable-width #f]))
 
     (new button% [parent this] [label "new"]
          [callback (λ (_b _e) (new contact-panel% (parent parent)))])
@@ -43,15 +45,13 @@
                      (when (empty? (send parent get-children))
                        (new contact-panel% (parent parent))))])
 
-    (define/public (get-number-label)
-      (send label-field get-value))
+    (define width (send parent get-width))
+    (send label-field min-width (floor (* 1/2 width)))
+    (send number-field min-width (floor (* 1/4 width)))
     
-    (define/public (get-number)
-      (send number-field get-value))
-
-    (define/public (delete!)
-      (delete-contact! #:number @init-num))
-
+    (define/public (get-number-label) (send label-field get-value))
+    (define/public (get-number) (send number-field get-value))
+    (define/public (delete!) (delete-contact! #:number @init-num))
     
     (define/public (save!)
       (define-values (label number)
@@ -74,7 +74,6 @@
   (class group-box-panel%
     (init parent person-id)
     (define @pid person-id)
-
     
     (define to-delete '())
     (define (empty-to-delete!) (set! to-delete '()))

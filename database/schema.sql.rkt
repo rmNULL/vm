@@ -74,4 +74,19 @@
  union
  select 'work'
  union
- select 'other'")))
+ select 'other'")
+    (OpeningBalance . "CREATE TABLE IF NOT EXISTS OpeningBalance(
+    open_date date PRIMARY KEY,
+    amount number
+)")
+    
+    (DayBook . "CREATE TABLE IF NOT EXISTS DayBook(
+      id integer PRIMARY KEY,
+      date datetime,
+      description text,
+      payment_method text,
+      category text,
+      credit NUMBER default 0,
+      debit NUMBER default 0,
+      Total NUMBER
+)")))

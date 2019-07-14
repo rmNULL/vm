@@ -1,13 +1,6 @@
 #lang racket/base
-(require db
-         racket/match
-         "./vm.rkt")
-(provide open-day daybook-add current-balance)
-
-(define (open-day amount)
-  (query-exec DBCON
-              "insert into OpeningBalance(open_date, amount) values (date('now', 'localtime'), $1)"
-              amount))
+(require db racket/match "./vm.rkt")
+(provide open-day day-opened? daybook-add current-balance)
 
 (define (opening-balance date)
   'TO-DO-OPENING-BALANCE)
@@ -72,3 +65,13 @@
                        #:trader pid
                        #:role cat))
   (commit-transaction DBCON))
+
+(define (day-opened?)
+  (query-maybe-value
+         DBCON
+         "select 1 from OpeningBalance where open_date = date('now', 'localtime')"))
+
+(define (open-day amount)
+  (query-exec DBCON
+              "insert into OpeningBalance(open_date, amount) values (date('now', 'localtime'), $1)"
+              amount))

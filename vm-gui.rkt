@@ -1,7 +1,8 @@
 #lang racket/gui
 (require "./window/invoice.rkt"
          "./window/inventory.rkt"
-         "./window/people.rkt")
+         "./window/people.rkt"
+         "./window/daybook.rkt")
 
 (define main-window
   (new frame% [label "VM"]
@@ -22,7 +23,8 @@
   `(("Customers" . ,draw-customers)
     ("Inventory" . ,draw-inventory)
     ("Suppliers" . ,draw-suppliers)
-    ("Invoices"  . ,draw-invoices)))
+    ("Invoices"  . ,draw-invoices)
+    ("Day Book"  . ,draw-daybook)))
 
 (define T
   (new tab-panel%

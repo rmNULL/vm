@@ -1,7 +1,9 @@
 #lang racket/base
-(require db racket/string)
+(require db racket/match racket/string)
 (require "./database/connection.rkt")
 (provide (all-defined-out))
+
+
 
 ;; Note --
 ;; ALL DATETIME ARE STORED IN DEFAULT FORMAT, but retreived in LOCALTIME format.
@@ -22,6 +24,13 @@
 (define sqlite-false 0 #;(query-value DBCON "select false"))
 (define (last-insert-rowid)
   (query-value DBCON "select last_insert_rowid()"))
+(define (query-non-null-row conn query . args)
+  (define row (apply query-maybe-row conn query args))
+  (match row
+    [(or #f (vector (== sql-null) ...)) #f]
+    [(vector _ ...) row]
+    ;; not adding a guard clause as i want it to fail (:
+    ))
 
 (struct Contact (label number))
 (struct Account (number IFSC bank branch))
@@ -46,7 +55,6 @@
 
 (define (select-lot#s [status "open"])
   (query-list DBCON "select lot from Inventory where status = ?" status))
-
 
 
 (define (insert-account! #:account a #:person p)
@@ -403,3 +411,43 @@
   (let ([qry (prepare DBCON "select 1 from Inventory where lot = ?")])
     (λ (lot#)
       (query-maybe-value DBCON qry lot#))))
+
+
+(define (ledger-trader-add
+         #:daybook-entry daybook-entry
+         #:trader pid
+         #:role role)  
+  (query-exec
+   DBCON
+   "insert into LedgerTrader(trader, daybook_entry, role) values($1, $2, $3)"
+   pid daybook-entry role))
+
+;; client may ask discount on damaged goods for which invoice was already issued
+(define (ledger-invoice-add
+         #:invoice-no invoice-no
+         #:amount amt
+         #:description desc)
+  (query-exec
+   DBCON
+   "insert into LedgerInvoice(invoice, description, amount) values($1, $2, $3)"
+   invoice-no desc amt))
+
+(define (ledger-add kwargs)
+  
+  ;; no arguments taken, as arguments are verified in match below
+  (define (ledger-add!)
+    (define args
+      ;; 0 is a safe-guard for credit/debit field
+      (map (λ (k) (hash-ref kwargs k 0)) 
+	   '(person-ref payment-method role credit debit total description)))
+    (apply
+     query-exec 
+     "insert into MoneyTransaction(date,person, payment_method, role, credit, debit, total, description)
+	   values(datetime('now', 'localtime'), $1, $2, $3, $4, $5, $6, $7)"
+     args))
+
+  (match kwargs
+    [(hash-table ((or 'credit 'debit) amount) ('role role) ('person-ref pid)
+		 ('description desc) ('payment-method payment-method)) 
+     (ledger-add!)]
+    [_ (raise 'invalid-kwargs-given)]))

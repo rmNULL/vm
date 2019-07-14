@@ -92,3 +92,57 @@ AS
  select 'work'
  union
  select 'other';
+
+CREATE TABLE IF NOT EXISTS OpeningBalance(
+    open_date date PRIMARY KEY,
+    amount number);
+    
+CREATE TABLE IF NOT EXISTS DayBook(
+      id integer PRIMARY KEY,
+      date datetime,
+      description text,
+      payment_method text,
+      category text,
+      credit NUMBER default 0,
+      debit NUMBER default 0,
+      Total NUMBER);
+
+-- Although named as LedgerInvoice read it as InvoiceLedger,
+--  the ref table is suffixed, to make it easier for code autocompletion, and
+--  remembering of names :)
+
+--  maintain discounts given after an invoice is issued
+(LedgerInvoice . "CREATE TABLE IF NOT EXISTS LedgerInvoice(
+	invoice REFERENCES Invoice(number) ON UPDATE CASCADE NOT NULL,
+	description text,
+	amount NUMBER default 0,
+	PRIMARY KEY(invoice)
+);")
+
+-- 
+(LedgerTrader . "CREATE TABLE IF NOT EXISTS LedgerTrader(
+	id integer PRIMARY KEY,
+	trader REFERENCES People(id) ON DELETE CASCADE,
+	daybook_entry REFERENCES DayBook(id) ON UPDATE CASCADE NOT NULL,
+	role text,
+	CHECK( role IN ('customer', 'supplier') )
+);")
+
+
+-- 
+(LedgerMisc . "CREATE TABLE IF NOT EXISTS LedgerMisc(
+	id integer PRIMARY KEY,
+	date datetime,
+	trader REFERENCES People(id) ON DELETE CASCADE,
+	role text,
+	amount number,
+	description text,
+	CHECK( role IN ('customer', 'supplier') )
+);")
+
+
+/* CREATE VIEW IF NOT EXISTS Ledger */
+/* AS */
+/* ; */
+
+

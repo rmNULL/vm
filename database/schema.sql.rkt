@@ -51,11 +51,14 @@
     (MoneyTransaction . "CREATE TABLE IF NOT EXISTS MoneyTransaction(
 	ref_id integer PRIMARY KEY,
 	person REFERENCES People(id) ON DELETE CASCADE,
+	payment_method text default 'cash',
+	role text,
 	date datetime,
 	credit number,
 	debit number,
 	total number,
-	description text)")
+	description text,
+	CHECK(role IN ('customer', 'supplier')))")
     (BankAccounts . "CREATE TABLE IF NOT EXISTS BankAccounts(
 	person REFERENCES People(id) ON DELETE CASCADE,
 	name text default '',
@@ -75,12 +78,11 @@
  select 'work'
  union
  select 'other'")
-    (OpeningBalance . "CREATE TABLE IF NOT EXISTS OpeningBalance(
+ (OpeningBalance . "CREATE TABLE IF NOT EXISTS OpeningBalance(
     open_date date PRIMARY KEY,
-    amount number
-)")
+    amount number)")
     
-    (DayBook . "CREATE TABLE IF NOT EXISTS DayBook(
+ (DayBook . "CREATE TABLE IF NOT EXISTS DayBook(
       id integer PRIMARY KEY,
       date datetime,
       description text,
@@ -89,4 +91,29 @@
       credit NUMBER default 0,
       debit NUMBER default 0,
       Total NUMBER
+)")
+
+(LedgerInvoice . "CREATE TABLE IF NOT EXISTS LedgerInvoice(
+	invoice REFERENCES Invoice(number) ON UPDATE CASCADE NOT NULL,
+	description text,
+	amount NUMBER default 0,
+	PRIMARY KEY(invoice)
+)")
+
+(LedgerTrader . "CREATE TABLE IF NOT EXISTS LedgerTrader(
+	id integer PRIMARY KEY,
+	trader REFERENCES People(id) ON DELETE CASCADE,
+	daybook_entry REFERENCES DayBook(id) ON UPDATE CASCADE NOT NULL,
+	role text,
+	CHECK( role IN ('customer', 'supplier') )
+)")
+
+(LedgerMisc . "CREATE TABLE IF NOT EXISTS LedgerMisc(
+	id integer PRIMARY KEY,
+	date datetime,
+	trader REFERENCES People(id) ON DELETE CASCADE,
+	role text,
+	amount number,
+	description text,
+	CHECK( role IN ('customer', 'supplier') )
 )")))

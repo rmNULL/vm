@@ -47,25 +47,54 @@
       (set! datas ds))))
 
 
-(define (dialog-prompt window-name msg continue)
+(define (dialog-cb-prompt childproc
+         window-name continue
+         #:true-label  [ok-label "ok"]
+         #:false-label [cancel-label "Cancel"])
   (define dialog (new dialog% (label window-name)))
-
   
-  (new message% [parent dialog] [label msg])
+  (childproc dialog)
   (define panel
     (new horizontal-panel% [parent dialog] [alignment '(center center)]))
 
   ;; if you are adding code(to callback), its time for refactor !!
-  (new button% [parent panel] [label "Cancel"] [callback (λ (b e)
+  (new button% [parent panel] [label cancel-label] [callback (λ (b e)
                                                            (send dialog show false)
                                                            (continue #F))])
-  (new button% [parent panel] [label "Ok"] [callback (λ (b e)
+  (new button% [parent panel] [label ok-label] [callback (λ (b e)
                                                        (send dialog show false)
                                                        (continue #T))])
   (when (system-position-ok-before-cancel?)
     (send panel change-children reverse))
   (send dialog show true))
 
+(define (dialog-prompt window-name msg continue
+                       #:true-label  [ok-label "ok"]
+                       #:false-label [cancel-label "Cancel"])
+
+  (dialog-cb-prompt (λ (dialog) (new message% [parent dialog] [label msg]))
+   window-name continue
+   #:true-label ok-label
+   #:false-label cancel-label))
+  #|
+  (define dialog (new dialog% (label window-name)))
+
+  
+  
+  (define panel
+    (new horizontal-panel% [parent dialog] [alignment '(center center)]))
+
+  ;; if you are adding code(to callback), its time for refactor !!
+  (new button% [parent panel] [label cancel-label] [callback (λ (b e)
+                                                           (send dialog show false)
+                                                           (continue #F))])
+  (new button% [parent panel] [label ok-label] [callback (λ (b e)
+                                                       (send dialog show false)
+                                                       (continue #T))])
+  (when (system-position-ok-before-cancel?)
+    (send panel change-children reverse))
+  (send dialog show true))
+|#
 
 ;; provides add row by #of cols in the list-box
 (define extended-list-box%

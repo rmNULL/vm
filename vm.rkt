@@ -3,8 +3,6 @@
 (require "./database/connection.rkt")
 (provide (all-defined-out))
 
-
-
 ;; Note --
 ;; ALL DATETIME ARE STORED IN DEFAULT FORMAT, but retreived in LOCALTIME format.
 ;;
@@ -451,3 +449,4 @@
 		 ('description desc) ('payment-method payment-method)) 
      (ledger-add!)]
     [_ (raise 'invalid-kwargs-given)]))
+
